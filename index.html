@@ -161,13 +161,20 @@ function finishRace() {
   loadLeaderboard();
 }
 function saveScore() {
-  if (scoreSaved) return;
-  scoreSaved = true;
-  saveBtn.disabled = true;
-  const name = document.getElementById("playerName").value || "Anonymous";
+  const nameInput = document.getElementById("playerName");
+  const button = promptBox.querySelector("button");
+  const name = nameInput.value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-  db.ref("scores").push(score, loadLeaderboard);
+
+  db.ref("scores").push(score, () => {
+    // Disable input and button after saving
+    nameInput.disabled = true;
+    button.disabled = true;
+    // Load and show the leaderboard
+    loadLeaderboard();
+  });
 }
+
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
     const scores = [];
