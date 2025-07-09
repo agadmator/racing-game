@@ -30,17 +30,20 @@
 <div id="ui">Lap: 0/3 | Time: 0.00s</div>
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
-  <input type="text" id="playerName" placeholder="Enter your name"><br><br>
-  <button onclick="saveScore()">Save Score</button>
+  <div id="scoreInput">
+    <input type="text" id="playerName" placeholder="Enter your name"><br><br>
+    <button onclick="saveScore()">Save Score</button>
+  </div>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<!-- Firebase SDKs -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
+// Your Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -62,6 +65,7 @@ const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
+const scoreInput = document.getElementById("scoreInput");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -93,6 +97,7 @@ let timer = 0;
 let started = false;
 let finished = false;
 let passedHalfway = false;
+let submitted = false;
 
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
@@ -201,35 +206,31 @@ function finishRace() {
   db.ref("scores").orderByChild("time").once("value", snapshot => {
     const scores = [];
     snapshot.forEach(child => scores.push(child.val()));
-
     scores.sort((a, b) => a.time - b.time);
+
     const isTop10 = scores.length < 10 || timer < scores[scores.length - 1].time;
 
     if (isTop10) {
-      promptBox.style.display = "block";
-      loadLeaderboard(); // Show updated top 10 so player sees their target
+      scoreInput.style.display = "block";
     } else {
-      promptBox.style.display = "block";
-      document.getElementById("playerName").style.display = "none";
-      document.querySelector("button").style.display = "none";
+      scoreInput.style.display = "none";
       leaderboard.innerHTML = "<p>You're not in the Top 10, but here are the current leaders:</p>";
-      loadLeaderboard();
     }
+
+    promptBox.style.display = "block";
+    loadLeaderboard();
   });
 }
 
-let submitted = false;
 function saveScore() {
-  if (submitted) return; // Prevent double submit
+  if (submitted) return;
   submitted = true;
 
   const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-
   db.ref("scores").push(score, () => {
     loadLeaderboard();
-    document.querySelector("button").disabled = true;
-    document.getElementById("playerName").disabled = true;
+    scoreInput.innerHTML = "<p>✅ Score submitted!</p>";
   });
 }
 
@@ -240,10 +241,9 @@ function loadLeaderboard() {
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
     for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
-    leaderboard.innerHTML = html;
+    leaderboard.innerHTML += html;
   });
 }
-
 
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
