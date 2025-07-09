@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -204,12 +205,19 @@ function finishRace() {
 function saveScore() {
   if (scoreSaved) return;
   scoreSaved = true;
-  const name = document.getElementById("playerName").value || "Anonymous";
+  const nameInput = document.getElementById("playerName");
+  const saveButton = document.querySelector("#namePrompt button");
+  const name = nameInput.value.trim() || "Anonymous";
   const time = parseFloat(timer.toFixed(2));
-  db.ref("scores").push({ name, time }, () => {
-    document.getElementById("playerName").style.display = "none";
-    document.querySelector("button").style.display = "none";
+
+  db.ref("scores").push({ name, time }).then(() => {
+    nameInput.style.display = "none";
+    saveButton.style.display = "none";
     loadLeaderboard();
+  }).catch((error) => {
+    alert("❌ Could not save score. Try again.");
+    console.error("Firebase error:", error);
+    scoreSaved = false;
   });
 }
 
