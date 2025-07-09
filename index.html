@@ -41,6 +41,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
+// ✅ Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -50,7 +51,6 @@ const firebaseConfig = {
   appId: "1:56099021474:web:c658be3c14eb930687adfb",
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 </script>
@@ -202,7 +202,7 @@ function finishRace() {
 }
 
 function saveScore() {
-  const name = document.getElementById("playerName").value || "Anonymous";
+  const name = document.getElementById("playerName").value.trim() || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
   db.ref("scores").push(score, () => {
     document.getElementById("playerName").style.display = "none";
