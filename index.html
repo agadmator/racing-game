@@ -1,36 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>God of Wheels</title>
-  <style>
-    html, body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; color: white; height: 100%; }
-    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; font-size: 18px; }
-    canvas { display: block; margin: 50px auto 0; background: #222; border-radius: 8px; }
-    #namePrompt {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      background: #333; padding: 20px; border-radius: 10px;
-      color: white; text-align: center; width: 320px;
-      display: none;
-      box-shadow: 0 0 15px #000;
-      z-index: 50;
-    }
-    #namePrompt input, #namePrompt button {
-      font-size: 16px; padding: 6px; margin-top: 10px;
-      border: none; border-radius: 4px; width: 100%;
-    }
-    #namePrompt button:disabled {
-      background: #666; cursor: not-allowed;
-    }
-    #leaderboard {
-      margin-top: 15px;
-      text-align: left;
-      font-size: 14px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-  </style>
+<meta charset="UTF-8" />
+<title>God of Wheels</title>
+<style>
+  html, body {
+    margin: 0; background: #111; overflow: hidden;
+    font-family: sans-serif; color: white;
+    height: 100%;
+  }
+  canvas {
+    display: block; margin: auto;
+    background: #222;
+  }
+  #ui {
+    position: absolute; top: 10px; left: 10px; z-index: 10;
+    font-size: 18px;
+  }
+  #namePrompt {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: #333; padding: 20px; border-radius: 10px;
+    color: white; text-align: center; width: 320px;
+    display: none;
+    box-shadow: 0 0 15px #000;
+  }
+  #namePrompt input, #namePrompt button {
+    font-size: 16px; padding: 6px; margin-top: 10px;
+    border: none; border-radius: 4px; width: 100%;
+  }
+  #namePrompt button:disabled {
+    background: #666; cursor: not-allowed;
+  }
+  #leaderboard {
+    margin-top: 15px;
+    text-align: left;
+    font-size: 14px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+</style>
 </head>
 <body>
 
@@ -73,23 +82,9 @@
   const playAgainBtn = document.getElementById("playAgainBtn");
   const leaderboard = document.getElementById("leaderboard");
 
-  let laps = 0;
-  let timer = 0;
-  let started = false;
-  let finished = false;
-  let passedHalfway = false;
-  let scoreSaved = false;
-
-  // Controls from device orientation
-  let tiltForwardBack = 0; // pitch (front/back tilt)
-  let tiltLeftRight = 0;   // roll (left/right tilt)
-
-  window.addEventListener('deviceorientation', e => {
-    // e.beta is front/back tilt [-180 to 180], e.gamma is left/right tilt [-90 to 90]
-    // We'll use e.beta for acceleration/brake, e.gamma for turning
-    tiltForwardBack = e.beta || 0;  
-    tiltLeftRight = e.gamma || 0;
-  });
+  let keys = {};
+  window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+  window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
   const track = {
     centerX: 400,
@@ -118,6 +113,13 @@
     { x: 400, y: 500 },
     { x: 400, y: 300 }
   ];
+
+  let laps = 0;
+  let timer = 0;
+  let started = false;
+  let finished = false;
+  let passedHalfway = false;
+  let scoreSaved = false;
 
   function drawTrack() {
     ctx.fillStyle = "#2e7d32";
@@ -185,22 +187,10 @@
   function updateCar() {
     if (finished) return;
 
-    // Tilt controls
-    // Normalize tilt input ranges to reasonable values
-    // Front/back tilt controls acceleration/brake
-    if (tiltForwardBack < 15) {
-      car.speed += car.accel;
-    } else if (tiltForwardBack > 35) {
-      car.speed -= car.accel * 0.7;
-    }
-
-    // Left/right tilt controls turning
-    // Map tiltLeftRight approx [-30,30] degrees to turning rate
-    if (tiltLeftRight < -5) {
-      car.angle -= 0.05 * (car.speed / car.maxSpeed);
-    } else if (tiltLeftRight > 5) {
-      car.angle += 0.05 * (car.speed / car.maxSpeed);
-    }
+    if (keys["w"]) car.speed += car.accel;
+    if (keys["s"]) car.speed -= car.accel * 0.7;
+    if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
+    if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
 
     car.speed = Math.min(car.speed, car.maxSpeed);
     car.speed *= car.friction;
@@ -261,6 +251,7 @@
         playerName.style.display = "none";
         saveBtn.style.display = "none";
         alert("Score saved successfully!");
+        // Leaderboard auto-updates
       })
       .catch((err) => {
         alert("Error saving score. Please try again.");
@@ -310,7 +301,8 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  let timer = 0;
+  // Removed duplicate timer declaration here!
+
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTrack();
@@ -324,5 +316,6 @@
 
   gameLoop();
 </script>
+
 </body>
 </html>
