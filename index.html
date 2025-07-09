@@ -1,23 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Drift Racer</title>
+  <meta charset="UTF-8" />
+  <title>God of Wheels</title>
   <style>
     html, body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; color: white; }
     canvas { display: block; margin: auto; background: #222; }
-    #ui {
-      position: absolute; top: 10px; left: 10px;
-      z-index: 10; font-size: 18px;
-    }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; font-size: 18px; }
     #namePrompt {
       position: absolute; top: 40%; left: 50%;
       transform: translate(-50%, -50%);
       background: #333; padding: 20px; border-radius: 10px;
-      display: none;
-      color: white;
-      text-align: center;
-      width: 300px;
+      display: none; color: white; text-align: center; width: 300px;
     }
     input, button {
       font-size: 16px;
@@ -38,10 +32,28 @@
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
   <input type="text" id="playerName" placeholder="Enter your name"><br><br>
   <button onclick="saveScore()">Save Score</button>
-  <p id="highScoreDisplay"></p>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
+  authDomain: "god-of-wheels.firebaseapp.com",
+  projectId: "god-of-wheels",
+  storageBucket: "god-of-wheels.appspot.com",
+  messagingSenderId: "56099021474",
+  appId: "1:56099021474:web:c658be3c14eb930687adfb",
+  databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+</script>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
@@ -49,17 +61,11 @@ const ctx = canvas.getContext("2d");
 const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
-const highScoreDisplay = document.getElementById("highScoreDisplay");
 const leaderboard = document.getElementById("leaderboard");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-const engineSound = new Audio("https://freesound.org/data/previews/172/172866_2437358-lq.mp3");
-engineSound.loop = true;
-engineSound.volume = 0.3;
-engineSound.play();
 
 const track = {
   centerX: 400,
@@ -91,7 +97,6 @@ let passedHalfway = false;
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   const grad = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
   grad.addColorStop(0, "#444");
   grad.addColorStop(1, "#111");
@@ -152,12 +157,10 @@ function drawCar() {
 
 function updateCar() {
   if (finished) return;
-
   if (keys["w"]) car.speed += car.accel;
   if (keys["s"]) car.speed -= car.accel * 0.7;
   if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
   if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
-
   car.speed = Math.min(car.speed, car.maxSpeed);
   car.speed *= car.friction;
   car.x += Math.sin(car.angle) * car.speed;
@@ -168,36 +171,21 @@ function updateCar() {
   const dx = car.x - track.centerX;
   const dy = car.y - track.centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) {
-    car.speed *= 0.5;
-  }
-
+  if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
   for (let obs of obstacles) {
     const d = Math.hypot(car.x - obs.x, car.y - obs.y);
-    if (d < 20) {
-      car.speed *= 0.4;
-    }
+    if (d < 20) car.speed *= 0.4;
   }
 
   const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
   const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
-
-  if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) {
-    passedHalfway = true;
-  }
-
-  if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI) {
-    if (passedHalfway) {
-      passedHalfway = false;
-      if (!started) {
-        started = true;
-        laps = 1;
-      } else {
-        laps++;
-        if (laps >= 3) {
-          finishRace();
-        }
-      }
+  if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
+  if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
+    passedHalfway = false;
+    if (!started) { started = true; laps = 1; }
+    else {
+      laps++;
+      if (laps >= 3) finishRace();
     }
   }
 }
@@ -207,34 +195,29 @@ function updateUI() {
 }
 
 function finishRace() {
-  engineSound.pause();
   finished = true;
   finalTime.innerText = timer.toFixed(2);
   promptBox.style.display = "block";
-  showLeaderboard();
+  loadLeaderboard();
 }
 
 function saveScore() {
   const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-
-  let scores = JSON.parse(localStorage.getItem("scoreList") || "[]");
-  scores.push(score);
-  scores.sort((a, b) => a.time - b.time);
-  scores = scores.slice(0, 10); // Keep top 10
-  localStorage.setItem("scoreList", JSON.stringify(scores));
-
-  showLeaderboard();
+  db.ref("scores").push(score, loadLeaderboard);
 }
 
-function showLeaderboard() {
-  let scores = JSON.parse(localStorage.getItem("scoreList") || "[]");
-  let html = "<h3>🏆 Top 10 Times</h3><ol>";
-  for (let s of scores) {
-    html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
-  }
-  html += "</ol>";
-  leaderboard.innerHTML = html;
+function loadLeaderboard() {
+  db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
+    const scores = [];
+    snapshot.forEach(child => {
+      scores.push(child.val());
+    });
+    let html = "<h3>🏆 Top 10 Times</h3><ol>";
+    for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+    html += "</ol>";
+    leaderboard.innerHTML = html;
+  });
 }
 
 function gameLoop() {
@@ -243,11 +226,10 @@ function gameLoop() {
   drawObstacles();
   updateCar();
   drawCar();
-  if (started && !finished) timer += 1/60;
+  if (started && !finished) timer += 1 / 60;
   updateUI();
   requestAnimationFrame(gameLoop);
 }
-
 requestAnimationFrame(gameLoop);
 </script>
 </body>
