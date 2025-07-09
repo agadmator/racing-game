@@ -1,7 +1,8 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>God of Wheels</title>
   <style>
     html, body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; color: white; }
@@ -27,9 +28,9 @@
   </style>
 </head>
 <body>
-<div id="ui">Lap: 0/3 | Time: 0.00s</div>
+<div id="ui">Lap: <span id="lapCount">0</span>/3 | Time: <span id="time">0.00</span>s</div>
 <div id="namePrompt">
-  <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
+  <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span></p>
   <div id="scoreInput">
     <input type="text" id="playerName" placeholder="Enter your name"><br><br>
     <button onclick="saveScore()">Save Score</button>
@@ -43,7 +44,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-// ✅ Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -54,7 +54,6 @@ const firebaseConfig = {
   measurementId: "G-3MR7QRPPWE",
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 </script>
@@ -62,201 +61,137 @@ const db = firebase.database();
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-const ui = document.getElementById("ui");
-const promptBox = document.getElementById("namePrompt");
-const finalTime = document.getElementById("finalTime");
-const leaderboard = document.getElementById("leaderboard");
-const scoreInput = document.getElementById("scoreInput");
+let car = { x: 400, y: 200, angle: Math.PI/2, speed: 0, lap: 0 };
+let keys = {}, timer = 0, running = true, finished = false;
+const startLine = { x: 400, y: 100, width: 5, height: 100 };
 
-let keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
 
-const track = {
-  centerX: 400,
-  centerY: 400,
-  innerRadius: 140,
-  outerRadius: 240,
-  midRadius: (140 + 240) / 2
-};
+function update() {
+  if (!finished) timer += 1/60;
+  if (keys["a"]) car.angle -= 0.05;
+  if (keys["d"]) car.angle += 0.05;
+  if (running && !finished) car.speed = Math.min(car.speed + 0.2, 4);
+  car.x += Math.cos(car.angle) * car.speed;
+  car.y += Math.sin(car.angle) * car.speed;
+  car.speed *= 0.98;
 
-const car = {
-  x: track.centerX,
-  y: track.centerY - track.midRadius,
-  angle: Math.PI / 2,
-  speed: 0, maxSpeed: 5, accel: 0.15,
-  friction: 0.97, drift: 0.05,
-  width: 20, height: 40
-};
+  // Wall boundaries
+  let dx = car.x - 400, dy = car.y - 400;
+  let dist = Math.sqrt(dx*dx + dy*dy);
+  if (dist < 150 || dist > 300) car.speed *= 0.5;
 
-let obstacles = [
-  {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300}
-];
+  // Lap detection
+  if (!finished && car.y < 110 && car.y > 90 && car.x > 390 && car.x < 410 && car.speed > 1) {
+    if (!car.justCrossed) {
+      car.lap++;
+      document.getElementById("lapCount").innerText = car.lap;
+      car.justCrossed = true;
+      if (car.lap >= 3) finishRace();
+    }
+  } else {
+    car.justCrossed = false;
+  }
+}
 
-let laps = 0;
-let timer = 0;
-let started = false;
-let finished = false;
-let passedHalfway = false;
-let submitted = false;
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-function drawTrack() {
-  ctx.fillStyle = "#2e7d32";
+  // Background
+  ctx.fillStyle = "green";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const grad = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
-  grad.addColorStop(0, "#444");
-  grad.addColorStop(1, "#111");
-  ctx.fillStyle = grad;
+
+  // Track
   ctx.beginPath();
-  ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
-  ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
+  ctx.arc(400, 400, 300, 0, 2 * Math.PI);
+  ctx.arc(400, 400, 150, 0, 2 * Math.PI, true);
+  ctx.fillStyle = "black";
   ctx.fill();
 
-  ctx.strokeStyle = "white";
+  // Dashed center line
   ctx.setLineDash([10, 10]);
-  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
+  ctx.arc(400, 400, 225, 0, 2 * Math.PI);
+  ctx.strokeStyle = "white";
   ctx.stroke();
   ctx.setLineDash([]);
 
-  const angle = -Math.PI / 2;
-  const startX1 = track.centerX + Math.cos(angle) * track.innerRadius;
-  const startY1 = track.centerY + Math.sin(angle) * track.innerRadius;
-  const startX2 = track.centerX + Math.cos(angle) * track.outerRadius;
-  const startY2 = track.centerY + Math.sin(angle) * track.outerRadius;
-
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(startX1, startY1);
-  ctx.lineTo(startX2, startY2);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px sans-serif";
-  ctx.fillText("START", track.centerX - 25, startY1 - 10);
-}
-
-function drawObstacles() {
+  // Obstacles
   ctx.fillStyle = "orange";
-  obstacles.forEach(o => {
+  [[400, 300], [330, 400], [470, 400], [400, 470]].forEach(([x, y]) => {
     ctx.beginPath();
-    ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
+    ctx.arc(x, y, 10, 0, 2 * Math.PI);
     ctx.fill();
   });
-}
 
-function drawCar() {
+  // Start line
+  ctx.fillStyle = "white";
+  ctx.fillRect(startLine.x - 2, startLine.y, startLine.width, startLine.height);
+  ctx.fillText("START", 380, 120);
+
+  // Car
   ctx.save();
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle);
-  ctx.shadowColor = "black";
-  ctx.shadowBlur = 15;
-  ctx.fillStyle = "#f44336";
-  ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
-  ctx.fillStyle = "white";
-  ctx.fillRect(-car.width/4, -car.height/2, 5, 5);
-  ctx.fillRect(car.width/4 - 5, -car.height/2, 5, 5);
+  ctx.fillStyle = "red";
+  ctx.fillRect(-10, -5, 20, 10);
   ctx.restore();
+
+  document.getElementById("time").innerText = timer.toFixed(2);
 }
 
-function updateCar() {
-  if (finished) return;
-  if (keys["w"]) car.speed += car.accel;
-  if (keys["s"]) car.speed -= car.accel * 0.7;
-  if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
-  if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
-  car.speed = Math.min(car.speed, car.maxSpeed);
-  car.speed *= car.friction;
-  car.x += Math.sin(car.angle) * car.speed;
-  car.y -= Math.cos(car.angle) * car.speed;
-  car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
-  car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
-
-  const dx = car.x - track.centerX;
-  const dy = car.y - track.centerY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
-  for (let obs of obstacles) {
-    const d = Math.hypot(car.x - obs.x, car.y - obs.y);
-    if (d < 20) car.speed *= 0.4;
-  }
-
-  const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
-  const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
-  if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
-  if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
-    passedHalfway = false;
-    if (!started) { started = true; laps = 1; }
-    else {
-      laps++;
-      if (laps >= 3) finishRace();
-    }
-  }
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
 }
-
-function updateUI() {
-  ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`;
-}
+loop();
 
 function finishRace() {
   finished = true;
-  finalTime.innerText = timer.toFixed(2);
+  document.getElementById("finalTime").innerText = timer.toFixed(2);
 
-  db.ref("scores").orderByChild("time").once("value", snapshot => {
+  db.ref("scores").orderByChild("time").once("value", snap => {
     const scores = [];
-    snapshot.forEach(child => scores.push(child.val()));
+    snap.forEach(child => scores.push(child.val()));
     scores.sort((a, b) => a.time - b.time);
 
     const isTop10 = scores.length < 10 || timer < scores[scores.length - 1].time;
+    const prompt = document.getElementById("namePrompt");
+    const inputBlock = document.getElementById("scoreInput");
 
-    promptBox.style.display = "block";
-    scoreInput.style.display = isTop10 ? "block" : "none";
+    prompt.style.display = "block";
+    inputBlock.style.display = isTop10 ? "block" : "none";
 
-    leaderboard.innerHTML = isTop10
-      ? "<p>You made it into the Top 10! 🏁</p>"
-      : "<p>You didn't make Top 10. Here are the current leaders:</p>";
-
+    document.getElementById("leaderboard").innerHTML =
+      (isTop10 ? "<p>You made the Top 10! 🚗💨</p>" : "<p>Not in Top 10, but here are the best:</p>");
     loadLeaderboard();
   });
 }
 
+let submitted = false;
 function saveScore() {
   if (submitted) return;
   submitted = true;
-
   const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-
   db.ref("scores").push(score, () => {
-    scoreInput.innerHTML = "<p>✅ Score submitted!</p>";
+    document.getElementById("scoreInput").innerHTML = "<p>✅ Score saved!</p>";
     loadLeaderboard();
   });
 }
 
 function loadLeaderboard() {
-  db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
+  db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snap => {
     const scores = [];
-    snapshot.forEach(child => scores.push(child.val()));
+    snap.forEach(child => scores.push(child.val()));
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
     for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
-    leaderboard.innerHTML += html;
+    document.getElementById("leaderboard").innerHTML += html;
   });
 }
-
-function gameLoop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawTrack();
-  drawObstacles();
-  updateCar();
-  drawCar();
-  if (started && !finished) timer += 1 / 60;
-  updateUI();
-  requestAnimationFrame(gameLoop);
-}
-requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
