@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>God of Wheels - Fresh Build</title>
+<title>God of Wheels - GitHub Pages Compatible</title>
 <style>
   html, body {
     margin: 0; background: #111; overflow: hidden;
@@ -55,10 +55,12 @@
 
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, get, query, orderByChild, limitToFirst } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
+<script>
+  // Your Firebase config here - KEEP IT EXACT!
   const firebaseConfig = {
     apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
     authDomain: "god-of-wheels.firebaseapp.com",
@@ -69,8 +71,8 @@
     databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
   const canvas = document.getElementById("gameCanvas");
   const ctx = canvas.getContext("2d");
@@ -238,47 +240,52 @@
     namePrompt.style.display = "block";
   }
 
-  saveBtn.addEventListener("click", async () => {
+  saveBtn.addEventListener("click", () => {
     if (scoreSaved) return;
     const name = playerName.value.trim() || "Anonymous";
     const time = parseFloat(timer.toFixed(2));
 
     saveBtn.disabled = true;
 
-    try {
-      await push(ref(db, "scores"), { name, time });
-      scoreSaved = true;
-      playerName.style.display = "none";
-      saveBtn.style.display = "none";
-      alert("Score saved successfully!");
-      loadLeaderboard();
-    } catch (err) {
-      alert("Error saving score. Please try again.");
-      console.error(err);
-      saveBtn.disabled = false;
-    }
+    firebase.database().ref('scores').push({ name, time })
+      .then(() => {
+        scoreSaved = true;
+        playerName.style.display = "none";
+        saveBtn.style.display = "none";
+        alert("Score saved successfully!");
+        loadLeaderboard();
+      })
+      .catch((err) => {
+        alert("Error saving score. Please try again.");
+        console.error(err);
+        saveBtn.disabled = false;
+      });
   });
 
-  async function loadLeaderboard() {
+  function loadLeaderboard() {
     leaderboard.innerHTML = "<p>Loading leaderboard...</p>";
-    try {
-      const scoresRef = query(ref(db, "scores"), orderByChild("time"), limitToFirst(10));
-      const snapshot = await get(scoresRef);
-      if (!snapshot.exists()) {
-        leaderboard.innerHTML = "<p>No scores yet.</p>";
-        return;
-      }
-      let html = "<h3>🏆 Top 10 Times</h3><ol>";
-      snapshot.forEach(child => {
-        const s = child.val();
-        html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+
+    firebase.database().ref('scores')
+      .orderByChild('time')
+      .limitToFirst(10)
+      .once('value')
+      .then(snapshot => {
+        if (!snapshot.exists()) {
+          leaderboard.innerHTML = "<p>No scores yet.</p>";
+          return;
+        }
+        let html = "<h3>🏆 Top 10 Times</h3><ol>";
+        snapshot.forEach(child => {
+          const s = child.val();
+          html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+        });
+        html += "</ol>";
+        leaderboard.innerHTML = html;
+      })
+      .catch(err => {
+        leaderboard.innerHTML = "<p>Error loading leaderboard.</p>";
+        console.error(err);
       });
-      html += "</ol>";
-      leaderboard.innerHTML = html;
-    } catch (err) {
-      leaderboard.innerHTML = "<p>Error loading leaderboard.</p>";
-      console.error(err);
-    }
   }
 
   function resetRace() {
@@ -302,6 +309,7 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
+  let timer = 0;
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTrack();
