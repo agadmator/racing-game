@@ -9,13 +9,19 @@
     font-family: sans-serif; color: white;
     height: 100%;
   }
-  canvas {
-    display: block; margin: auto;
-    background: #222;
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   #ui {
     position: absolute; top: 10px; left: 10px; z-index: 10;
     font-size: 18px;
+  }
+  canvas {
+    background: #222;
+    margin-top: 50px;
+    border-radius: 8px;
   }
   #namePrompt {
     position: absolute; top: 50%; left: 50%;
@@ -24,6 +30,7 @@
     color: white; text-align: center; width: 320px;
     display: none;
     box-shadow: 0 0 15px #000;
+    z-index: 50;
   }
   #namePrompt input, #namePrompt button {
     font-size: 16px; padding: 6px; margin-top: 10px;
@@ -38,6 +45,37 @@
     font-size: 14px;
     max-height: 200px;
     overflow-y: auto;
+  }
+
+  /* Mobile controls container */
+  #mobileControls {
+    margin-top: 20px;
+    width: 320px;
+    height: 150px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    user-select: none;
+    touch-action: none;
+  }
+  .btn {
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 36px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  .btn:active {
+    background: rgba(255,255,255,0.6);
   }
 </style>
 </head>
@@ -54,6 +92,14 @@
 </div>
 
 <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+<!-- Mobile controls -->
+<div id="mobileControls">
+  <div class="btn" id="btnUp">▲</div>
+  <div class="btn" id="btnLeft">◄</div>
+  <div class="btn" id="btnDown">▼</div>
+  <div class="btn" id="btnRight">►</div>
+</div>
 
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -85,6 +131,37 @@
   let keys = {};
   window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
   window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+  // Mobile control buttons
+  const btnUp = document.getElementById("btnUp");
+  const btnDown = document.getElementById("btnDown");
+  const btnLeft = document.getElementById("btnLeft");
+  const btnRight = document.getElementById("btnRight");
+
+  function setKey(key, value) {
+    keys[key] = value;
+  }
+  // Handle touch events for mobile buttons
+  [btnUp, btnDown, btnLeft, btnRight].forEach(btn => {
+    btn.addEventListener("touchstart", e => {
+      e.preventDefault();
+      switch(btn.id) {
+        case "btnUp": setKey("w", true); break;
+        case "btnDown": setKey("s", true); break;
+        case "btnLeft": setKey("a", true); break;
+        case "btnRight": setKey("d", true); break;
+      }
+    });
+    btn.addEventListener("touchend", e => {
+      e.preventDefault();
+      switch(btn.id) {
+        case "btnUp": setKey("w", false); break;
+        case "btnDown": setKey("s", false); break;
+        case "btnLeft": setKey("a", false); break;
+        case "btnRight": setKey("d", false); break;
+      }
+    });
+  });
 
   const track = {
     centerX: 400,
@@ -251,7 +328,6 @@
         playerName.style.display = "none";
         saveBtn.style.display = "none";
         alert("Score saved successfully!");
-        // Leaderboard auto-updates
       })
       .catch((err) => {
         alert("Error saving score. Please try again.");
@@ -301,8 +377,7 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  // Removed duplicate timer declaration here!
-
+  let timer = 0;
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTrack();
