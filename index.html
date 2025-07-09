@@ -274,6 +274,7 @@
       });
   });
 
+  // Keep leaderboard always visible and update live
   firebase.database().ref('scores')
     .orderByChild('time')
     .limitToFirst(10)
@@ -283,9 +284,10 @@
         return;
       }
       let html = "";
+      let index = 1;
       snapshot.forEach(child => {
         const s = child.val();
-        html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+        html += `<li>${index++}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
       });
       leaderboardList.innerHTML = html;
     }, err => {
@@ -314,8 +316,7 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  // Only one declaration here:
-  let timer = 0;
+  let timer = 0;  // Declare timer only once at the start
 
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
