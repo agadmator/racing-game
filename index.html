@@ -197,28 +197,53 @@ function updateUI() {
 function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
-  promptBox.style.display = "block";
-  loadLeaderboard();
+
+  db.ref("scores").orderByChild("time").once("value", snapshot => {
+    const scores = [];
+    snapshot.forEach(child => scores.push(child.val()));
+
+    scores.sort((a, b) => a.time - b.time);
+    const isTop10 = scores.length < 10 || timer < scores[scores.length - 1].time;
+
+    if (isTop10) {
+      promptBox.style.display = "block";
+      loadLeaderboard(); // Show updated top 10 so player sees their target
+    } else {
+      promptBox.style.display = "block";
+      document.getElementById("playerName").style.display = "none";
+      document.querySelector("button").style.display = "none";
+      leaderboard.innerHTML = "<p>You're not in the Top 10, but here are the current leaders:</p>";
+      loadLeaderboard();
+    }
+  });
 }
 
+let submitted = false;
 function saveScore() {
+  if (submitted) return; // Prevent double submit
+  submitted = true;
+
   const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-  db.ref("scores").push(score, loadLeaderboard);
+
+  db.ref("scores").push(score, () => {
+    loadLeaderboard();
+    document.querySelector("button").disabled = true;
+    document.getElementById("playerName").disabled = true;
+  });
 }
 
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
     const scores = [];
-    snapshot.forEach(child => {
-      scores.push(child.val());
-    });
+    snapshot.forEach(child => scores.push(child.val()));
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
     for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
     leaderboard.innerHTML = html;
   });
 }
+
 
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
