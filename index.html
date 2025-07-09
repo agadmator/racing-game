@@ -129,7 +129,7 @@
   ];
 
   let laps = 0;
-  let timer = 0;
+  let timer = 0;  // Keep only this declaration here
   let started = false;
   let finished = false;
   let passedHalfway = false;
@@ -280,18 +280,17 @@
     .limitToFirst(10)
     .on('value', snapshot => {
       if (!snapshot.exists()) {
-        leaderboard.innerHTML = "<p>No scores yet.</p>";
+        leaderboardList.innerHTML = "<li>No scores yet.</li>";
         return;
       }
-      let html = "<h3>🏆 Top 10 Times</h3><ol>";
+      let html = "";
       snapshot.forEach(child => {
         const s = child.val();
         html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
       });
-      html += "</ol>";
-      leaderboard.innerHTML = html;
+      leaderboardList.innerHTML = html;
     }, err => {
-      leaderboard.innerHTML = "<p>Error loading leaderboard.</p>";
+      leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
       console.error(err);
     });
 
@@ -312,12 +311,10 @@
     saveBtn.style.display = "inline-block";
     saveBtn.disabled = false;
     playAgainBtn.style.display = "none";
-    leaderboard.innerHTML = "";
+    leaderboardList.innerHTML = "";
   }
 
   playAgainBtn.addEventListener("click", resetRace);
-
-  let timer = 0;
 
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
