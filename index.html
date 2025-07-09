@@ -160,20 +160,32 @@ function finishRace() {
   saveBtn.disabled = false;
   loadLeaderboard();
 }
+<script>
 function saveScore() {
   const nameInput = document.getElementById("playerName");
   const button = promptBox.querySelector("button");
-  const name = nameInput.value || "Anonymous";
+
+  // Prevent multiple saves
+  if (button.disabled) return;
+
+  const name = nameInput.value.trim() || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
 
-  db.ref("scores").push(score, () => {
-    // Disable input and button after saving
-    nameInput.disabled = true;
-    button.disabled = true;
-    // Load and show the leaderboard
-    loadLeaderboard();
+  db.ref("scores").push(score, error => {
+    if (!error) {
+      // Hide input and button
+      nameInput.style.display = "none";
+      button.style.display = "none";
+
+      // Load and display leaderboard
+      loadLeaderboard();
+    } else {
+      alert("❌ Failed to save score. Please try again.");
+    }
   });
 }
+</script>
+
 
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
