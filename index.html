@@ -130,7 +130,7 @@
     ];
 
     let laps = 0;
-    let timer = 0;
+    let timer = 0; // Declare timer only once here
     let started = false;
     let finished = false;
     let passedHalfway = false;
@@ -251,13 +251,18 @@
       finished = true;
       finalTime.textContent = timer.toFixed(2);
       namePrompt.style.display = "block";
+      console.log("Race finished! Showing name prompt.");
     }
 
     saveBtn.addEventListener("click", () => {
-      if (scoreSaved) return;
+      if (scoreSaved) {
+        console.log("Score already saved. Ignoring.");
+        return;
+      }
       const name = playerName.value.trim() || "Anonymous";
       const time = parseFloat(timer.toFixed(2));
 
+      console.log(`Saving score: ${name} - ${time}s`);
       saveBtn.disabled = true;
 
       firebase.database().ref('scores').push({ name, time })
@@ -266,37 +271,40 @@
           playerName.style.display = "none";
           saveBtn.style.display = "none";
           playAgainBtn.style.display = "inline-block";
-          alert("Score saved successfully!");
+          console.log("Score saved successfully!");
+          // Leaderboard auto-updates via Firebase listener
         })
         .catch((err) => {
           alert("Error saving score. Please try again.");
-          console.error(err);
+          console.error("Firebase save error:", err);
           saveBtn.disabled = false;
         });
     });
 
-    // Keep leaderboard always visible and update live
     firebase.database().ref('scores')
       .orderByChild('time')
       .limitToFirst(10)
       .on('value', snapshot => {
+        console.log("Received leaderboard update.");
         if (!snapshot.exists()) {
           leaderboardList.innerHTML = "<li>No scores yet.</li>";
           return;
         }
         let html = "";
-        let index = 1;
+        let rank = 1;
         snapshot.forEach(child => {
           const s = child.val();
-          html += `<li>${index++}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
+          html += `<li>${rank}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
+          rank++;
         });
         leaderboardList.innerHTML = html;
       }, err => {
         leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
-        console.error(err);
+        console.error("Firebase leaderboard error:", err);
       });
 
     function resetRace() {
+      console.log("Resetting race...");
       car.x = track.centerX;
       car.y = track.centerY - track.midRadius;
       car.angle = Math.PI / 2;
@@ -317,8 +325,6 @@
 
     playAgainBtn.addEventListener("click", resetRace);
 
-    let timer = 0;  // Declare timer only once at the start
-
     function gameLoop() {
       try {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -329,15 +335,15 @@
         if (started && !finished) timer += 1 / 60;
         updateUI();
         requestAnimationFrame(gameLoop);
-      } catch (error) {
-        console.error("Error in gameLoop:", error);
+      } catch (err) {
+        console.error("Game loop error:", err);
       }
     }
 
-    console.log("Starting game loop...");
     gameLoop();
+
   } catch (error) {
-    console.error("Error in main script:", error);
+    console.error("Initialization error:", error);
   }
 </script>
 
