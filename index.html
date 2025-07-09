@@ -43,7 +43,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-// Your Firebase config
+// ✅ Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -51,6 +51,7 @@ const firebaseConfig = {
   storageBucket: "god-of-wheels.appspot.com",
   messagingSenderId: "56099021474",
   appId: "1:56099021474:web:c658be3c14eb930687adfb",
+  measurementId: "G-3MR7QRPPWE",
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
@@ -210,14 +211,13 @@ function finishRace() {
 
     const isTop10 = scores.length < 10 || timer < scores[scores.length - 1].time;
 
-    if (isTop10) {
-      scoreInput.style.display = "block";
-    } else {
-      scoreInput.style.display = "none";
-      leaderboard.innerHTML = "<p>You're not in the Top 10, but here are the current leaders:</p>";
-    }
-
     promptBox.style.display = "block";
+    scoreInput.style.display = isTop10 ? "block" : "none";
+
+    leaderboard.innerHTML = isTop10
+      ? "<p>You made it into the Top 10! 🏁</p>"
+      : "<p>You didn't make Top 10. Here are the current leaders:</p>";
+
     loadLeaderboard();
   });
 }
@@ -228,9 +228,10 @@ function saveScore() {
 
   const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
+
   db.ref("scores").push(score, () => {
-    loadLeaderboard();
     scoreInput.innerHTML = "<p>✅ Score submitted!</p>";
+    loadLeaderboard();
   });
 }
 
