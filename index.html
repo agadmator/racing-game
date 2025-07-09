@@ -74,262 +74,271 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
-    authDomain: "god-of-wheels.firebaseapp.com",
-    projectId: "god-of-wheels",
-    storageBucket: "god-of-wheels.appspot.com",
-    messagingSenderId: "56099021474",
-    appId: "1:56099021474:web:c658be3c14eb930687adfb",
-    databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+  try {
+    const firebaseConfig = {
+      apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
+      authDomain: "god-of-wheels.firebaseapp.com",
+      projectId: "god-of-wheels",
+      storageBucket: "god-of-wheels.appspot.com",
+      messagingSenderId: "56099021474",
+      appId: "1:56099021474:web:c658be3c14eb930687adfb",
+      databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
-  const ui = document.getElementById("ui");
-  const namePrompt = document.getElementById("namePrompt");
-  const finalTime = document.getElementById("finalTime");
-  const playerName = document.getElementById("playerName");
-  const saveBtn = document.getElementById("saveBtn");
-  const playAgainBtn = document.getElementById("playAgainBtn");
-  const leaderboardList = document.getElementById("leaderboardList");
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const ui = document.getElementById("ui");
+    const namePrompt = document.getElementById("namePrompt");
+    const finalTime = document.getElementById("finalTime");
+    const playerName = document.getElementById("playerName");
+    const saveBtn = document.getElementById("saveBtn");
+    const playAgainBtn = document.getElementById("playAgainBtn");
+    const leaderboardList = document.getElementById("leaderboardList");
 
-  let keys = {};
-  window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-  window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+    let keys = {};
+    window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-  const track = {
-    centerX: 400,
-    centerY: 400,
-    innerRadius: 140,
-    outerRadius: 240,
-    midRadius: 190
-  };
+    const track = {
+      centerX: 400,
+      centerY: 400,
+      innerRadius: 140,
+      outerRadius: 240,
+      midRadius: 190
+    };
 
-  const car = {
-    x: track.centerX,
-    y: track.centerY - track.midRadius,
-    angle: Math.PI / 2,
-    speed: 0,
-    maxSpeed: 5,
-    accel: 0.15,
-    friction: 0.97,
-    drift: 0.05,
-    width: 20,
-    height: 40
-  };
+    const car = {
+      x: track.centerX,
+      y: track.centerY - track.midRadius,
+      angle: Math.PI / 2,
+      speed: 0,
+      maxSpeed: 5,
+      accel: 0.15,
+      friction: 0.97,
+      drift: 0.05,
+      width: 20,
+      height: 40
+    };
 
-  const obstacles = [
-    { x: 500, y: 400 },
-    { x: 300, y: 400 },
-    { x: 400, y: 500 },
-    { x: 400, y: 300 }
-  ];
+    const obstacles = [
+      { x: 500, y: 400 },
+      { x: 300, y: 400 },
+      { x: 400, y: 500 },
+      { x: 400, y: 300 }
+    ];
 
-  let laps = 0;
-  let timer = 0;
-  let started = false;
-  let finished = false;
-  let passedHalfway = false;
-  let scoreSaved = false;
+    let laps = 0;
+    let timer = 0;
+    let started = false;
+    let finished = false;
+    let passedHalfway = false;
+    let scoreSaved = false;
 
-  function drawTrack() {
-    ctx.fillStyle = "#2e7d32";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    function drawTrack() {
+      ctx.fillStyle = "#2e7d32";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const gradient = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
-    gradient.addColorStop(0, "#444");
-    gradient.addColorStop(1, "#111");
-    ctx.fillStyle = gradient;
+      const gradient = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
+      gradient.addColorStop(0, "#444");
+      gradient.addColorStop(1, "#111");
+      ctx.fillStyle = gradient;
 
-    ctx.beginPath();
-    ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
-    ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
-    ctx.fill();
-
-    ctx.strokeStyle = "white";
-    ctx.setLineDash([10, 10]);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const startAngle = -Math.PI / 2;
-    const startXInner = track.centerX + Math.cos(startAngle) * track.innerRadius;
-    const startYInner = track.centerY + Math.sin(startAngle) * track.innerRadius;
-    const startXOuter = track.centerX + Math.cos(startAngle) * track.outerRadius;
-    const startYOuter = track.centerY + Math.sin(startAngle) * track.outerRadius;
-
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(startXInner, startYInner);
-    ctx.lineTo(startXOuter, startYOuter);
-    ctx.stroke();
-
-    ctx.fillStyle = "white";
-    ctx.font = "bold 16px sans-serif";
-    ctx.fillText("START", track.centerX - 25, startYInner - 10);
-  }
-
-  function drawObstacles() {
-    ctx.fillStyle = "orange";
-    obstacles.forEach(o => {
       ctx.beginPath();
-      ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
+      ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
+      ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
       ctx.fill();
-    });
-  }
 
-  function drawCar() {
-    ctx.save();
-    ctx.translate(car.x, car.y);
-    ctx.rotate(car.angle);
-    ctx.shadowColor = "black";
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = "#f44336";
-    ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
-    ctx.fillStyle = "white";
-    ctx.fillRect(-car.width / 4, -car.height / 2, 5, 5);
-    ctx.fillRect(car.width / 4 - 5, -car.height / 2, 5, 5);
-    ctx.restore();
-  }
+      ctx.strokeStyle = "white";
+      ctx.setLineDash([10, 10]);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-  function updateCar() {
-    if (finished) return;
+      const startAngle = -Math.PI / 2;
+      const startXInner = track.centerX + Math.cos(startAngle) * track.innerRadius;
+      const startYInner = track.centerY + Math.sin(startAngle) * track.innerRadius;
+      const startXOuter = track.centerX + Math.cos(startAngle) * track.outerRadius;
+      const startYOuter = track.centerY + Math.sin(startAngle) * track.outerRadius;
 
-    if (keys["w"]) car.speed += car.accel;
-    if (keys["s"]) car.speed -= car.accel * 0.7;
-    if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
-    if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(startXInner, startYInner);
+      ctx.lineTo(startXOuter, startYOuter);
+      ctx.stroke();
 
-    car.speed = Math.min(car.speed, car.maxSpeed);
-    car.speed *= car.friction;
-
-    if (!started && car.speed > 0.05) {
-      started = true;
-      laps = 1;
+      ctx.fillStyle = "white";
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText("START", track.centerX - 25, startYInner - 10);
     }
 
-    car.x += Math.sin(car.angle) * car.speed;
-    car.y -= Math.cos(car.angle) * car.speed;
-    car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
-    car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
-
-    const dx = car.x - track.centerX;
-    const dy = car.y - track.centerY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
-
-    for (let o of obstacles) {
-      if (Math.hypot(car.x - o.x, car.y - o.y) < 20) car.speed *= 0.4;
+    function drawObstacles() {
+      ctx.fillStyle = "orange";
+      obstacles.forEach(o => {
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
-    const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
-    const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
+    function drawCar() {
+      ctx.save();
+      ctx.translate(car.x, car.y);
+      ctx.rotate(car.angle);
+      ctx.shadowColor = "black";
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = "#f44336";
+      ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+      ctx.fillStyle = "white";
+      ctx.fillRect(-car.width / 4, -car.height / 2, 5, 5);
+      ctx.fillRect(car.width / 4 - 5, -car.height / 2, 5, 5);
+      ctx.restore();
+    }
 
-    if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
+    function updateCar() {
+      if (finished) return;
 
-    if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
-      passedHalfway = false;
-      if (started && !finished) {
-        laps++;
-        if (laps > 3) finishRace();
+      if (keys["w"]) car.speed += car.accel;
+      if (keys["s"]) car.speed -= car.accel * 0.7;
+      if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
+      if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
+
+      car.speed = Math.min(car.speed, car.maxSpeed);
+      car.speed *= car.friction;
+
+      if (!started && car.speed > 0.05) {
+        started = true;
+        laps = 1;
+      }
+
+      car.x += Math.sin(car.angle) * car.speed;
+      car.y -= Math.cos(car.angle) * car.speed;
+      car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
+      car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
+
+      const dx = car.x - track.centerX;
+      const dy = car.y - track.centerY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
+
+      for (let o of obstacles) {
+        if (Math.hypot(car.x - o.x, car.y - o.y) < 20) car.speed *= 0.4;
+      }
+
+      const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
+      const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
+
+      if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
+
+      if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
+        passedHalfway = false;
+        if (started && !finished) {
+          laps++;
+          if (laps > 3) finishRace();
+        }
       }
     }
-  }
 
-  function updateUI() {
-    ui.innerText = `Lap: ${Math.min(laps, 3)}/3 | Time: ${timer.toFixed(2)}s`;
-  }
+    function updateUI() {
+      ui.innerText = `Lap: ${Math.min(laps, 3)}/3 | Time: ${timer.toFixed(2)}s`;
+    }
 
-  function finishRace() {
-    finished = true;
-    finalTime.textContent = timer.toFixed(2);
-    namePrompt.style.display = "block";
-  }
+    function finishRace() {
+      finished = true;
+      finalTime.textContent = timer.toFixed(2);
+      namePrompt.style.display = "block";
+    }
 
-  saveBtn.addEventListener("click", () => {
-    if (scoreSaved) return;
-    const name = playerName.value.trim() || "Anonymous";
-    const time = parseFloat(timer.toFixed(2));
+    saveBtn.addEventListener("click", () => {
+      if (scoreSaved) return;
+      const name = playerName.value.trim() || "Anonymous";
+      const time = parseFloat(timer.toFixed(2));
 
-    saveBtn.disabled = true;
+      saveBtn.disabled = true;
 
-    firebase.database().ref('scores').push({ name, time })
-      .then(() => {
-        scoreSaved = true;
-        playerName.style.display = "none";
-        saveBtn.style.display = "none";
-        playAgainBtn.style.display = "inline-block";
-        alert("Score saved successfully!");
-      })
-      .catch((err) => {
-        alert("Error saving score. Please try again.");
+      firebase.database().ref('scores').push({ name, time })
+        .then(() => {
+          scoreSaved = true;
+          playerName.style.display = "none";
+          saveBtn.style.display = "none";
+          playAgainBtn.style.display = "inline-block";
+          alert("Score saved successfully!");
+        })
+        .catch((err) => {
+          alert("Error saving score. Please try again.");
+          console.error(err);
+          saveBtn.disabled = false;
+        });
+    });
+
+    // Keep leaderboard always visible and update live
+    firebase.database().ref('scores')
+      .orderByChild('time')
+      .limitToFirst(10)
+      .on('value', snapshot => {
+        if (!snapshot.exists()) {
+          leaderboardList.innerHTML = "<li>No scores yet.</li>";
+          return;
+        }
+        let html = "";
+        let index = 1;
+        snapshot.forEach(child => {
+          const s = child.val();
+          html += `<li>${index++}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
+        });
+        leaderboardList.innerHTML = html;
+      }, err => {
+        leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
         console.error(err);
-        saveBtn.disabled = false;
       });
-  });
 
-  // Keep leaderboard always visible and update live
-  firebase.database().ref('scores')
-    .orderByChild('time')
-    .limitToFirst(10)
-    .on('value', snapshot => {
-      if (!snapshot.exists()) {
-        leaderboardList.innerHTML = "<li>No scores yet.</li>";
-        return;
+    function resetRace() {
+      car.x = track.centerX;
+      car.y = track.centerY - track.midRadius;
+      car.angle = Math.PI / 2;
+      car.speed = 0;
+      laps = 0;
+      timer = 0;
+      started = false;
+      finished = false;
+      passedHalfway = false;
+      scoreSaved = false;
+      namePrompt.style.display = "none";
+      playerName.value = "";
+      playerName.style.display = "inline-block";
+      saveBtn.style.display = "inline-block";
+      saveBtn.disabled = false;
+      playAgainBtn.style.display = "none";
+    }
+
+    playAgainBtn.addEventListener("click", resetRace);
+
+    let timer = 0;  // Declare timer only once at the start
+
+    function gameLoop() {
+      try {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawTrack();
+        drawObstacles();
+        updateCar();
+        drawCar();
+        if (started && !finished) timer += 1 / 60;
+        updateUI();
+        requestAnimationFrame(gameLoop);
+      } catch (error) {
+        console.error("Error in gameLoop:", error);
       }
-      let html = "";
-      let index = 1;
-      snapshot.forEach(child => {
-        const s = child.val();
-        html += `<li>${index++}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
-      });
-      leaderboardList.innerHTML = html;
-    }, err => {
-      leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
-      console.error(err);
-    });
+    }
 
-  function resetRace() {
-    car.x = track.centerX;
-    car.y = track.centerY - track.midRadius;
-    car.angle = Math.PI / 2;
-    car.speed = 0;
-    laps = 0;
-    timer = 0;
-    started = false;
-    finished = false;
-    passedHalfway = false;
-    scoreSaved = false;
-    namePrompt.style.display = "none";
-    playerName.value = "";
-    playerName.style.display = "inline-block";
-    saveBtn.style.display = "inline-block";
-    saveBtn.disabled = false;
-    playAgainBtn.style.display = "none";
+    console.log("Starting game loop...");
+    gameLoop();
+  } catch (error) {
+    console.error("Error in main script:", error);
   }
-
-  playAgainBtn.addEventListener("click", resetRace);
-
-  let timer = 0;  // Declare timer only once at the start
-
-  function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawTrack();
-    drawObstacles();
-    updateCar();
-    drawCar();
-    if (started && !finished) timer += 1 / 60;
-    updateUI();
-    requestAnimationFrame(gameLoop);
-  }
-
-  gameLoop();
 </script>
 
 </body>
