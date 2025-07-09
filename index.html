@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>God of Wheels - GitHub Pages Compatible</title>
+<title>God of Wheels</title>
 <style>
   html, body {
     margin: 0; background: #111; overflow: hidden;
@@ -69,7 +69,6 @@
     appId: "1:56099021474:web:c658be3c14eb930687adfb",
     databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
@@ -252,7 +251,7 @@
         playerName.style.display = "none";
         saveBtn.style.display = "none";
         alert("Score saved successfully!");
-        // No need to call loadLeaderboard here, it updates automatically now
+        // Leaderboard auto-updates
       })
       .catch((err) => {
         alert("Error saving score. Please try again.");
@@ -261,7 +260,6 @@
       });
   });
 
-  // Auto-update leaderboard whenever scores change
   firebase.database().ref('scores')
     .orderByChild('time')
     .limitToFirst(10)
@@ -303,7 +301,8 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  let timer = 0;
+  // Removed duplicate timer declaration here!
+
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawTrack();
