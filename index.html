@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,7 +32,7 @@
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
   <input type="text" id="playerName" placeholder="Enter your name"><br>
-  <button onclick="saveScore()">Save Score</button>
+  <button id="saveScoreBtn">Save Score</button>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
@@ -63,6 +62,8 @@ const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
+const nameInput = document.getElementById("playerName");
+const saveButton = document.getElementById("saveScoreBtn");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -200,17 +201,21 @@ function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
   promptBox.style.display = "block";
+  // Focus input automatically
+  setTimeout(() => { nameInput.focus(); }, 200);
 }
 
 function saveScore() {
   if (scoreSaved) return;
   scoreSaved = true;
-  const nameInput = document.getElementById("playerName");
-  const saveButton = document.querySelector("#namePrompt button");
   const name = nameInput.value.trim() || "Anonymous";
   const time = parseFloat(timer.toFixed(2));
+  // Disable input/button while saving
+  nameInput.disabled = true;
+  saveButton.disabled = true;
 
   db.ref("scores").push({ name, time }).then(() => {
+    // Hide only the input and button, not the leaderboard
     nameInput.style.display = "none";
     saveButton.style.display = "none";
     loadLeaderboard();
@@ -218,8 +223,18 @@ function saveScore() {
     alert("❌ Could not save score. Try again.");
     console.error("Firebase error:", error);
     scoreSaved = false;
+    nameInput.disabled = false;
+    saveButton.disabled = false;
   });
 }
+
+// Attach saveScore to the button and allow pressing "Enter" in input
+saveButton.onclick = saveScore;
+nameInput.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    saveScore();
+  }
+});
 
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
