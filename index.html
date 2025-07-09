@@ -50,7 +50,6 @@ const firebaseConfig = {
   appId: "1:56099021474:web:c658be3c14eb930687adfb",
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 </script>
@@ -68,33 +67,11 @@ let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-const track = {
-  centerX: 400,
-  centerY: 400,
-  innerRadius: 140,
-  outerRadius: 240,
-  midRadius: (140 + 240) / 2
-};
+const track = { centerX: 400, centerY: 400, innerRadius: 140, outerRadius: 240, midRadius: 190 };
+const car = { x: 400, y: 210, angle: Math.PI / 2, speed: 0, maxSpeed: 5, accel: 0.15, friction: 0.97, drift: 0.05, width: 20, height: 40 };
+let obstacles = [ {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300} ];
 
-const car = {
-  x: track.centerX,
-  y: track.centerY - track.midRadius,
-  angle: Math.PI / 2,
-  speed: 0, maxSpeed: 5, accel: 0.15,
-  friction: 0.97, drift: 0.05,
-  width: 20, height: 40
-};
-
-let obstacles = [
-  {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300}
-];
-
-let laps = 0;
-let timer = 0;
-let started = false;
-let finished = false;
-let passedHalfway = false;
-let scoreSaved = false;
+let laps = 0, timer = 0, started = false, finished = false, passedHalfway = false, scoreSaved = false;
 
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
@@ -121,28 +98,14 @@ function drawTrack() {
   const startY1 = track.centerY + Math.sin(angle) * track.innerRadius;
   const startX2 = track.centerX + Math.cos(angle) * track.outerRadius;
   const startY2 = track.centerY + Math.sin(angle) * track.outerRadius;
-
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(startX1, startY1);
-  ctx.lineTo(startX2, startY2);
-  ctx.stroke();
-
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 16px sans-serif";
+  ctx.beginPath(); ctx.moveTo(startX1, startY1); ctx.lineTo(startX2, startY2); ctx.stroke();
   ctx.fillText("START", track.centerX - 25, startY1 - 10);
 }
 
 function drawObstacles() {
   ctx.fillStyle = "orange";
-  obstacles.forEach(o => {
-    ctx.beginPath();
-    ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  obstacles.forEach(o => { ctx.beginPath(); ctx.arc(o.x, o.y, 10, 0, Math.PI * 2); ctx.fill(); });
 }
-
 function drawCar() {
   ctx.save();
   ctx.translate(car.x, car.y);
@@ -156,7 +119,6 @@ function drawCar() {
   ctx.fillRect(car.width/4 - 5, -car.height/2, 5, 5);
   ctx.restore();
 }
-
 function updateCar() {
   if (finished) return;
   if (keys["w"]) car.speed += car.accel;
@@ -170,8 +132,7 @@ function updateCar() {
   car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
   car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
 
-  const dx = car.x - track.centerX;
-  const dy = car.y - track.centerY;
+  const dx = car.x - track.centerX, dy = car.y - track.centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
   for (let obs of obstacles) {
@@ -191,11 +152,7 @@ function updateCar() {
     }
   }
 }
-
-function updateUI() {
-  ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`;
-}
-
+function updateUI() { ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`; }
 function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
@@ -203,7 +160,6 @@ function finishRace() {
   saveBtn.disabled = false;
   loadLeaderboard();
 }
-
 function saveScore() {
   if (scoreSaved) return;
   scoreSaved = true;
@@ -212,29 +168,21 @@ function saveScore() {
   const score = { name, time: parseFloat(timer.toFixed(2)) };
   db.ref("scores").push(score, loadLeaderboard);
 }
-
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
     const scores = [];
-    snapshot.forEach(child => {
-      scores.push(child.val());
-    });
+    snapshot.forEach(child => scores.push(child.val()));
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
     for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
     leaderboard.innerHTML = html;
   });
 }
-
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawTrack();
-  drawObstacles();
-  updateCar();
-  drawCar();
+  drawTrack(); drawObstacles(); updateCar(); drawCar();
   if (started && !finished) timer += 1 / 60;
-  updateUI();
-  requestAnimationFrame(gameLoop);
+  updateUI(); requestAnimationFrame(gameLoop);
 }
 requestAnimationFrame(gameLoop);
 </script>
