@@ -30,13 +30,15 @@
 <div id="ui">Lap: 0/3 | Time: 0.00s</div>
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
-  <input type="text" id="playerName" placeholder="Enter your name"><br><br>
-  <button id="saveBtn" onclick="saveScore()">Save Score</button>
+  <div id="scoreInput">
+    <input type="text" id="playerName" placeholder="Enter your name"><br><br>
+    <button onclick="saveScore()">Save Score</button>
+  </div>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<!-- Firebase SDKs -->
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
@@ -61,64 +63,81 @@ const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
-const saveBtn = document.getElementById("saveBtn");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-const track = { centerX: 400, centerY: 400, innerRadius: 140, outerRadius: 240, midRadius: 190 };
-const car = { x: 400, y: 210, angle: Math.PI / 2, speed: 0, maxSpeed: 5, accel: 0.15, friction: 0.97, drift: 0.05, width: 20, height: 40 };
-let obstacles = [ {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300} ];
+const track = {
+  centerX: 400, centerY: 400,
+  innerRadius: 140, outerRadius: 240,
+  midRadius: (140 + 240) / 2
+};
 
-let laps = 0, timer = 0, started = false, finished = false, passedHalfway = false, scoreSaved = false;
+const car = {
+  x: track.centerX,
+  y: track.centerY - track.midRadius,
+  angle: Math.PI / 2,
+  speed: 0, maxSpeed: 5, accel: 0.15,
+  friction: 0.97, drift: 0.05,
+  width: 20, height: 40
+};
+
+let obstacles = [
+  {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300}
+];
+
+let laps = 0, timer = 0;
+let started = false, finished = false, passedHalfway = false;
 
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const grad = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
-  grad.addColorStop(0, "#444");
-  grad.addColorStop(1, "#111");
+  grad.addColorStop(0, "#444"); grad.addColorStop(1, "#111");
   ctx.fillStyle = grad;
   ctx.beginPath();
   ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
   ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
   ctx.fill();
 
-  ctx.strokeStyle = "white";
-  ctx.setLineDash([10, 10]);
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  ctx.strokeStyle = "white"; ctx.setLineDash([10, 10]); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
 
   const angle = -Math.PI / 2;
-  const startX1 = track.centerX + Math.cos(angle) * track.innerRadius;
-  const startY1 = track.centerY + Math.sin(angle) * track.innerRadius;
-  const startX2 = track.centerX + Math.cos(angle) * track.outerRadius;
-  const startY2 = track.centerY + Math.sin(angle) * track.outerRadius;
-  ctx.beginPath(); ctx.moveTo(startX1, startY1); ctx.lineTo(startX2, startY2); ctx.stroke();
-  ctx.fillText("START", track.centerX - 25, startY1 - 10);
+  const x1 = track.centerX + Math.cos(angle) * track.innerRadius;
+  const y1 = track.centerY + Math.sin(angle) * track.innerRadius;
+  const x2 = track.centerX + Math.cos(angle) * track.outerRadius;
+  const y2 = track.centerY + Math.sin(angle) * track.outerRadius;
+
+  ctx.strokeStyle = "white"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.fillStyle = "#fff"; ctx.font = "bold 16px sans-serif";
+  ctx.fillText("START", track.centerX - 25, y1 - 10);
 }
 
 function drawObstacles() {
   ctx.fillStyle = "orange";
-  obstacles.forEach(o => { ctx.beginPath(); ctx.arc(o.x, o.y, 10, 0, Math.PI * 2); ctx.fill(); });
+  obstacles.forEach(o => {
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
+
 function drawCar() {
   ctx.save();
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle);
-  ctx.shadowColor = "black";
-  ctx.shadowBlur = 15;
+  ctx.shadowColor = "black"; ctx.shadowBlur = 15;
   ctx.fillStyle = "#f44336";
   ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
   ctx.fillStyle = "white";
-  ctx.fillRect(-car.width/4, -car.height/2, 5, 5);
-  ctx.fillRect(car.width/4 - 5, -car.height/2, 5, 5);
+  ctx.fillRect(-car.width / 4, -car.height / 2, 5, 5);
+  ctx.fillRect(car.width / 4 - 5, -car.height / 2, 5, 5);
   ctx.restore();
 }
+
 function updateCar() {
   if (finished) return;
   if (keys["w"]) car.speed += car.accel;
@@ -132,7 +151,8 @@ function updateCar() {
   car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
   car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
 
-  const dx = car.x - track.centerX, dy = car.y - track.centerY;
+  const dx = car.x - track.centerX;
+  const dy = car.y - track.centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
   for (let obs of obstacles) {
@@ -152,40 +172,26 @@ function updateCar() {
     }
   }
 }
-function updateUI() { ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`; }
+
+function updateUI() {
+  ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`;
+}
+
 function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
   promptBox.style.display = "block";
-  saveBtn.disabled = false;
   loadLeaderboard();
 }
-<script>
+
 function saveScore() {
-  const nameInput = document.getElementById("playerName");
-  const button = promptBox.querySelector("button");
-
-  // Prevent multiple saves
-  if (button.disabled) return;
-
-  const name = nameInput.value.trim() || "Anonymous";
+  const name = document.getElementById("playerName").value || "Anonymous";
   const score = { name, time: parseFloat(timer.toFixed(2)) };
-
-  db.ref("scores").push(score, error => {
-    if (!error) {
-      // Hide input and button
-      nameInput.style.display = "none";
-      button.style.display = "none";
-
-      // Load and display leaderboard
-      loadLeaderboard();
-    } else {
-      alert("❌ Failed to save score. Please try again.");
-    }
+  db.ref("scores").push(score, () => {
+    document.getElementById("scoreInput").style.display = "none"; // Hide input and button
+    loadLeaderboard();
   });
 }
-</script>
-
 
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
@@ -197,11 +203,16 @@ function loadLeaderboard() {
     leaderboard.innerHTML = html;
   });
 }
+
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawTrack(); drawObstacles(); updateCar(); drawCar();
+  drawTrack();
+  drawObstacles();
+  updateCar();
+  drawCar();
   if (started && !finished) timer += 1 / 60;
-  updateUI(); requestAnimationFrame(gameLoop);
+  updateUI();
+  requestAnimationFrame(gameLoop);
 }
 requestAnimationFrame(gameLoop);
 </script>
