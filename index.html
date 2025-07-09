@@ -18,9 +18,7 @@
       padding: 6px;
       border: none;
       border-radius: 4px;
-      margin-top: 5px;
     }
-    button:disabled { background: #666; cursor: not-allowed; }
     #leaderboard {
       margin-top: 20px;
       text-align: left;
@@ -32,17 +30,17 @@
 <div id="ui">Lap: 0/3 | Time: 0.00s</div>
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
-  <input type="text" id="playerName" placeholder="Enter your name" maxlength="20"><br>
-  <button id="saveButton">Save Score</button>
-  <button onclick="resetRace()">Play Again</button>
+  <input type="text" id="playerName" placeholder="Enter your name"><br><br>
+  <button onclick="saveScore()">Save Score</button>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, push, get, query, orderByChild, limitToFirst } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -53,17 +51,17 @@ const firebaseConfig = {
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+</script>
 
+<script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
-const saveButton = document.getElementById("saveButton");
-const playerName = document.getElementById("playerName");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -95,7 +93,6 @@ let timer = 0;
 let started = false;
 let finished = false;
 let passedHalfway = false;
-let scoreSaved = false;
 
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
@@ -160,30 +157,17 @@ function drawCar() {
 
 function updateCar() {
   if (finished) return;
-
-  // update speed based on keys
   if (keys["w"]) car.speed += car.accel;
   if (keys["s"]) car.speed -= car.accel * 0.7;
   if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
   if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
-
-  // clamp max speed and apply friction
   car.speed = Math.min(car.speed, car.maxSpeed);
   car.speed *= car.friction;
-
-  // start timer and lap count when car actually starts moving forward
-  if (!started && car.speed > 0.05) {
-    started = true;
-    laps = 1;
-  }
-
-  // move car based on speed and angle
   car.x += Math.sin(car.angle) * car.speed;
   car.y -= Math.cos(car.angle) * car.speed;
   car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
   car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
 
-  // track bounds and obstacles slow the car
   const dx = car.x - track.centerX;
   const dy = car.y - track.centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -193,88 +177,47 @@ function updateCar() {
     if (d < 20) car.speed *= 0.4;
   }
 
-  // check for lap progress as before
   const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
   const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
   if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
   if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
     passedHalfway = false;
-    if (started && !finished) {
+    if (!started) { started = true; laps = 1; }
+    else {
       laps++;
-      if (laps > 3) finishRace();
+      if (laps >= 3) finishRace();
     }
   }
 }
 
 function updateUI() {
-  ui.innerText = `Lap: ${Math.min(laps,3)}/3 | Time: ${timer.toFixed(2)}s`;
+  ui.innerText = `Lap: ${laps}/3 | Time: ${timer.toFixed(2)}s`;
 }
 
 function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
   promptBox.style.display = "block";
+  loadLeaderboard();
 }
 
-let scoreSaved = false;
-saveButton.addEventListener("click", () => {
-  if (scoreSaved) return;
-  const name = playerName.value.trim() || "Anonymous";
-  const time = parseFloat(timer.toFixed(2));
-  saveButton.disabled = true;
-
-  push(ref(db, "scores"), { name, time })
-    .then(() => {
-      scoreSaved = true;
-      playerName.style.display = "none";
-      saveButton.style.display = "none";
-      alert("Score saved successfully!");
-      loadLeaderboard();
-    })
-    .catch((e) => {
-      alert("Failed to save score. Try again.");
-      saveButton.disabled = false;
-      console.error(e);
-    });
-});
+function saveScore() {
+  const name = document.getElementById("playerName").value || "Anonymous";
+  const score = { name, time: parseFloat(timer.toFixed(2)) };
+  db.ref("scores").push(score, loadLeaderboard);
+}
 
 function loadLeaderboard() {
-  const scoresRef = query(ref(db, "scores"), orderByChild("time"), limitToFirst(10));
-  get(scoresRef).then(snapshot => {
-    if (!snapshot.exists()) {
-      leaderboard.innerHTML = "<p>No scores yet.</p>";
-      return;
-    }
-    let html = "<h3>🏆 Top 10 Times</h3><ol>";
+  db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
+    const scores = [];
     snapshot.forEach(child => {
-      const s = child.val();
-      html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+      scores.push(child.val());
     });
+    let html = "<h3>🏆 Top 10 Times</h3><ol>";
+    for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
     leaderboard.innerHTML = html;
-  }).catch(e => {
-    leaderboard.innerHTML = "<p>Error loading leaderboard.</p>";
-    console.error(e);
   });
-}
-
-function resetRace() {
-  car.x = track.centerX;
-  car.y = track.centerY - track.midRadius;
-  car.angle = Math.PI / 2;
-  car.speed = 0;
-  laps = 0;
-  timer = 0;
-  started = false;
-  finished = false;
-  passedHalfway = false;
-  scoreSaved = false;
-  promptBox.style.display = "none";
-  playerName.value = "";
-  playerName.style.display = "inline-block";
-  saveButton.style.display = "inline-block";
-  saveButton.disabled = false;
-  leaderboard.innerHTML = "";
 }
 
 function gameLoop() {
