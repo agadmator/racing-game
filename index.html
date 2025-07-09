@@ -90,7 +90,7 @@ let obstacles = [
   {x: 500, y: 400}, {x: 300, y: 400}, {x: 400, y: 500}, {x: 400, y: 300}
 ];
 
-let laps = 1; // Start counting laps from 1 as soon as game starts
+let laps = 0;
 let timer = 0;
 let started = false;
 let finished = false;
@@ -161,29 +161,23 @@ function drawCar() {
 function updateCar() {
   if (finished) return;
 
-  // Update speed based on keys
+  if (!started && car.speed > 0.05) {
+    started = true;
+    laps = 1;
+  }
+
   if (keys["w"]) car.speed += car.accel;
   if (keys["s"]) car.speed -= car.accel * 0.7;
   if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
   if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
 
-  // Clamp max speed and apply friction
   car.speed = Math.min(car.speed, car.maxSpeed);
   car.speed *= car.friction;
-
-  // Start timer and lap count when car *actually* starts moving forward
-  if (!started && car.speed > 0.05) {  // threshold to avoid micro speed noise
-    started = true;
-    laps = 1;
-  }
-
-  // Move car based on speed and angle
   car.x += Math.sin(car.angle) * car.speed;
   car.y -= Math.cos(car.angle) * car.speed;
   car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
   car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
 
-  // Track bounds and obstacles slow the car
   const dx = car.x - track.centerX;
   const dy = car.y - track.centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -193,7 +187,6 @@ function updateCar() {
     if (d < 20) car.speed *= 0.4;
   }
 
-  // Check for lap progress as before
   const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
   const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
   if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
@@ -205,7 +198,6 @@ function updateCar() {
     }
   }
 }
-
 
 function updateUI() {
   ui.innerText = `Lap: ${Math.min(laps,3)}/3 | Time: ${timer.toFixed(2)}s`;
@@ -264,7 +256,7 @@ function resetRace() {
   car.y = track.centerY - track.midRadius;
   car.angle = Math.PI / 2;
   car.speed = 0;
-  laps = 1;
+  laps = 0;
   timer = 0;
   started = false;
   finished = false;
