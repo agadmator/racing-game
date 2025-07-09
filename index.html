@@ -20,6 +20,7 @@
       border-radius: 4px;
       margin-top: 5px;
     }
+    button:disabled { background: #666; cursor: not-allowed; }
     #leaderboard {
       margin-top: 20px;
       text-align: left;
@@ -31,17 +32,18 @@
 <div id="ui">Lap: 0/3 | Time: 0.00s</div>
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
-  <input type="text" id="playerName" placeholder="Enter your name"><br>
-  <button id="saveScoreBtn">Save Score</button>
+  <input type="text" id="playerName" placeholder="Enter your name" maxlength="20"><br>
+  <button id="saveButton" onclick="saveScore()">Save Score</button>
+  <button onclick="resetRace()">Play Again</button>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<!-- Firebase SDKs (Modular) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, push, onValue, query, orderByChild, limitToFirst } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-<script>
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -51,8 +53,10 @@ const firebaseConfig = {
   appId: "1:56099021474:web:c658be3c14eb930687adfb",
   databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+window.db = db; // Expose db to global scope for saveScore and loadLeaderboard
 </script>
 
 <script>
@@ -62,8 +66,7 @@ const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
-const nameInput = document.getElementById("playerName");
-const saveButton = document.getElementById("saveScoreBtn");
+const saveButton = document.getElementById("saveButton");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -201,51 +204,68 @@ function finishRace() {
   finished = true;
   finalTime.innerText = timer.toFixed(2);
   promptBox.style.display = "block";
-  // Focus input automatically
-  setTimeout(() => { nameInput.focus(); }, 200);
+  loadLeaderboard();
 }
 
 function saveScore() {
   if (scoreSaved) return;
-  scoreSaved = true;
-  const name = nameInput.value.trim() || "Anonymous";
+  const nameInput = document.getElementById("playerName");
+  let name = nameInput.value.trim();
+  if (name.length === 0) name = "Anonymous";
+  if (name.length > 20) {
+    alert("Name is too long (max 20 characters).");
+    return;
+  }
   const time = parseFloat(timer.toFixed(2));
-  // Disable input/button while saving
-  nameInput.disabled = true;
   saveButton.disabled = true;
 
-  db.ref("scores").push({ name, time }).then(() => {
-    // Hide only the input and button, not the leaderboard
-    nameInput.style.display = "none";
-    saveButton.style.display = "none";
-    loadLeaderboard();
-  }).catch((error) => {
-    alert("❌ Could not save score. Try again.");
-    console.error("Firebase error:", error);
-    scoreSaved = false;
-    nameInput.disabled = false;
-    saveButton.disabled = false;
-  });
+  push(ref(db, "scores"), { name, time })
+    .then(() => {
+      scoreSaved = true;
+      nameInput.style.display = "none";
+      saveButton.style.display = "none";
+      alert("Score saved successfully!");
+      loadLeaderboard();
+    })
+    .catch((error) => {
+      alert("❌ Could not save score. Try again.");
+      console.error("Firebase error:", error);
+      saveButton.disabled = false;
+    });
 }
 
-// Attach saveScore to the button and allow pressing "Enter" in input
-saveButton.onclick = saveScore;
-nameInput.addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    saveScore();
-  }
-});
-
 function loadLeaderboard() {
-  db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
+  const scoresRef = query(ref(db, "scores"), orderByChild("time"), limitToFirst(10));
+  onValue(scoresRef, (snapshot) => {
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
-    snapshot.forEach(child => {
+    snapshot.forEach((child) => {
       const s = child.val();
       html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     });
     html += "</ol>";
     leaderboard.innerHTML = html;
+  }, (error) => {
+    console.error("Leaderboard error:", error);
+    leaderboard.innerHTML = "<p>Error loading leaderboard.</p>";
   });
+}
+
+function resetRace() {
+  car.x = track.centerX;
+  car.y = track.centerY - track.midRadius;
+  car.angle = Math.PI / 2;
+  car.speed = 0;
+  laps = 0;
+  timer = 0;
+  started = false;
+  finished = false;
+  passedHalfway = false;
+  scoreSaved = false;
+  promptBox.style.display = "none";
+  document.getElementById("playerName").value = "";
+  document.getElementById("playerName").style.display = "inline-block";
+  saveButton.style.display = "inline-block";
+  saveButton.disabled = false;
 }
 
 function gameLoop() {
