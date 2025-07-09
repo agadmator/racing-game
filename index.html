@@ -24,6 +24,7 @@
     color: white; text-align: center; width: 320px;
     display: none;
     box-shadow: 0 0 15px #000;
+    z-index: 30;
   }
   #namePrompt input, #namePrompt button {
     font-size: 16px; padding: 6px; margin-top: 10px;
@@ -266,6 +267,7 @@
         saveBtn.style.display = "none";
         playAgainBtn.style.display = "inline-block";
         alert("Score saved successfully!");
+        // Leaderboard auto-updates
       })
       .catch((err) => {
         alert("Error saving score. Please try again.");
