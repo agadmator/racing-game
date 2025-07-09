@@ -2,27 +2,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>God of Wheels</title>
   <style>
-    html, body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; color: white; }
+    html, body { margin: 0; background: #111; font-family: sans-serif; color: white; overflow: hidden; }
     canvas { display: block; margin: auto; background: #222; }
-    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; font-size: 18px; }
+    #ui { position: absolute; top: 10px; left: 10px; font-size: 18px; z-index: 10; }
     #namePrompt {
       position: absolute; top: 40%; left: 50%;
       transform: translate(-50%, -50%);
       background: #333; padding: 20px; border-radius: 10px;
-      display: none; color: white; text-align: center; width: 300px;
+      display: none; text-align: center; width: 300px;
     }
     input, button {
       font-size: 16px;
       padding: 6px;
-      border: none;
-      border-radius: 4px;
+      margin-top: 10px;
     }
     #leaderboard {
-      margin-top: 20px;
       text-align: left;
+      margin-top: 20px;
       font-size: 14px;
     }
   </style>
@@ -30,19 +29,18 @@
 <body>
 <div id="ui">Lap: <span id="lapCount">0</span>/3 | Time: <span id="time">0.00</span>s</div>
 <div id="namePrompt">
-  <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span></p>
+  <p>🏁 Race Finished!<br>Time: <span id="finalTime"></span></p>
   <div id="scoreInput">
-    <input type="text" id="playerName" placeholder="Enter your name"><br><br>
+    <input type="text" id="playerName" placeholder="Enter your name" />
+    <br />
     <button onclick="saveScore()">Save Score</button>
   </div>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
@@ -61,55 +59,47 @@ const db = firebase.database();
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-let car = { x: 400, y: 200, angle: Math.PI/2, speed: 0, lap: 0 };
-let keys = {}, timer = 0, running = true, finished = false;
-const startLine = { x: 400, y: 100, width: 5, height: 100 };
-
+let car = { x: 400, y: 100, angle: Math.PI/2, speed: 0, lap: 0, justCrossed: false };
+let keys = {}, timer = 0, finished = false;
 document.addEventListener("keydown", e => keys[e.key] = true);
 document.addEventListener("keyup", e => keys[e.key] = false);
 
 function update() {
-  if (!finished) timer += 1/60;
+  if (finished) return;
+  timer += 1/60;
   if (keys["a"]) car.angle -= 0.05;
   if (keys["d"]) car.angle += 0.05;
-  if (running && !finished) car.speed = Math.min(car.speed + 0.2, 4);
+  car.speed = Math.min(car.speed + 0.2, 4);
   car.x += Math.cos(car.angle) * car.speed;
   car.y += Math.sin(car.angle) * car.speed;
   car.speed *= 0.98;
 
-  // Wall boundaries
-  let dx = car.x - 400, dy = car.y - 400;
-  let dist = Math.sqrt(dx*dx + dy*dy);
+  const dx = car.x - 400, dy = car.y - 400;
+  const dist = Math.sqrt(dx*dx + dy*dy);
   if (dist < 150 || dist > 300) car.speed *= 0.5;
 
   // Lap detection
-  if (!finished && car.y < 110 && car.y > 90 && car.x > 390 && car.x < 410 && car.speed > 1) {
-    if (!car.justCrossed) {
-      car.lap++;
-      document.getElementById("lapCount").innerText = car.lap;
-      car.justCrossed = true;
-      if (car.lap >= 3) finishRace();
-    }
-  } else {
+  if (car.y < 110 && car.y > 90 && car.x > 390 && car.x < 410 && !car.justCrossed) {
+    car.lap++;
+    document.getElementById("lapCount").innerText = car.lap;
+    car.justCrossed = true;
+    if (car.lap >= 3) finishRace();
+  } else if (car.y > 120 || car.x < 380 || car.x > 420) {
     car.justCrossed = false;
   }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Background
   ctx.fillStyle = "green";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Track
   ctx.beginPath();
   ctx.arc(400, 400, 300, 0, 2 * Math.PI);
   ctx.arc(400, 400, 150, 0, 2 * Math.PI, true);
   ctx.fillStyle = "black";
   ctx.fill();
 
-  // Dashed center line
   ctx.setLineDash([10, 10]);
   ctx.beginPath();
   ctx.arc(400, 400, 225, 0, 2 * Math.PI);
@@ -117,7 +107,6 @@ function draw() {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Obstacles
   ctx.fillStyle = "orange";
   [[400, 300], [330, 400], [470, 400], [400, 470]].forEach(([x, y]) => {
     ctx.beginPath();
@@ -125,12 +114,10 @@ function draw() {
     ctx.fill();
   });
 
-  // Start line
   ctx.fillStyle = "white";
-  ctx.fillRect(startLine.x - 2, startLine.y, startLine.width, startLine.height);
-  ctx.fillText("START", 380, 120);
+  ctx.fillRect(398, 100, 4, 100);
+  ctx.fillText("START", 385, 120);
 
-  // Car
   ctx.save();
   ctx.translate(car.x, car.y);
   ctx.rotate(car.angle);
@@ -151,21 +138,13 @@ loop();
 function finishRace() {
   finished = true;
   document.getElementById("finalTime").innerText = timer.toFixed(2);
-
   db.ref("scores").orderByChild("time").once("value", snap => {
     const scores = [];
     snap.forEach(child => scores.push(child.val()));
     scores.sort((a, b) => a.time - b.time);
-
     const isTop10 = scores.length < 10 || timer < scores[scores.length - 1].time;
-    const prompt = document.getElementById("namePrompt");
-    const inputBlock = document.getElementById("scoreInput");
-
-    prompt.style.display = "block";
-    inputBlock.style.display = isTop10 ? "block" : "none";
-
-    document.getElementById("leaderboard").innerHTML =
-      (isTop10 ? "<p>You made the Top 10! 🚗💨</p>" : "<p>Not in Top 10, but here are the best:</p>");
+    document.getElementById("namePrompt").style.display = "block";
+    document.getElementById("scoreInput").style.display = isTop10 ? "block" : "none";
     loadLeaderboard();
   });
 }
@@ -175,8 +154,7 @@ function saveScore() {
   if (submitted) return;
   submitted = true;
   const name = document.getElementById("playerName").value || "Anonymous";
-  const score = { name, time: parseFloat(timer.toFixed(2)) };
-  db.ref("scores").push(score, () => {
+  db.ref("scores").push({ name, time: parseFloat(timer.toFixed(2)) }, () => {
     document.getElementById("scoreInput").innerHTML = "<p>✅ Score saved!</p>";
     loadLeaderboard();
   });
@@ -189,7 +167,7 @@ function loadLeaderboard() {
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
     for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
     html += "</ol>";
-    document.getElementById("leaderboard").innerHTML += html;
+    document.getElementById("leaderboard").innerHTML = html;
   });
 }
 </script>
