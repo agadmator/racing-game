@@ -33,11 +33,21 @@
     background: #666; cursor: not-allowed;
   }
   #leaderboard {
-    margin-top: 15px;
-    text-align: left;
-    font-size: 14px;
-    max-height: 200px;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 220px;
+    max-height: 400px;
+    background: rgba(0,0,0,0.7);
+    border-radius: 10px;
+    padding: 10px;
     overflow-y: auto;
+    font-size: 14px;
+    z-index: 20;
+  }
+  #leaderboard h3 {
+    margin-top: 0;
+    text-align: center;
   }
 </style>
 </head>
@@ -49,8 +59,12 @@
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
   <input type="text" id="playerName" placeholder="Enter your name" maxlength="20" />
   <button id="saveBtn">Save Score</button>
-  <button id="playAgainBtn">Play Again</button>
-  <div id="leaderboard"></div>
+  <button id="playAgainBtn" style="display:none;">Play Again</button>
+</div>
+
+<div id="leaderboard">
+  <h3>🏆 Top 10 Times</h3>
+  <ol id="leaderboardList"><li>Loading...</li></ol>
 </div>
 
 <canvas id="gameCanvas" width="800" height="800"></canvas>
@@ -80,7 +94,7 @@
   const playerName = document.getElementById("playerName");
   const saveBtn = document.getElementById("saveBtn");
   const playAgainBtn = document.getElementById("playAgainBtn");
-  const leaderboard = document.getElementById("leaderboard");
+  const leaderboardList = document.getElementById("leaderboardList");
 
   let keys = {};
   window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -250,6 +264,7 @@
         scoreSaved = true;
         playerName.style.display = "none";
         saveBtn.style.display = "none";
+        playAgainBtn.style.display = "inline-block";
         alert("Score saved successfully!");
         // Leaderboard auto-updates
       })
@@ -296,12 +311,13 @@
     playerName.style.display = "inline-block";
     saveBtn.style.display = "inline-block";
     saveBtn.disabled = false;
+    playAgainBtn.style.display = "none";
     leaderboard.innerHTML = "";
   }
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  // Removed duplicate timer declaration here!
+  let timer = 0;
 
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
