@@ -18,6 +18,7 @@
       padding: 6px;
       border: none;
       border-radius: 4px;
+      margin-top: 5px;
     }
     #leaderboard {
       margin-top: 20px;
@@ -30,8 +31,8 @@
 <div id="ui">Lap: 0/3 | Time: 0.00s</div>
 <div id="namePrompt">
   <p>🏁 Race Finished!<br>Best Time: <span id="finalTime"></span>s</p>
-  <input type="text" id="playerName" placeholder="Enter your name"><br><br>
-  <button id="saveBtn">Save Score</button>
+  <input type="text" id="playerName" placeholder="Enter your name"><br>
+  <button onclick="saveScore()">Save Score</button>
   <div id="leaderboard"></div>
 </div>
 <canvas id="gameCanvas" width="800" height="800"></canvas>
@@ -41,7 +42,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <script>
-// ✅ Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
   authDomain: "god-of-wheels.firebaseapp.com",
@@ -62,7 +62,6 @@ const ui = document.getElementById("ui");
 const promptBox = document.getElementById("namePrompt");
 const finalTime = document.getElementById("finalTime");
 const leaderboard = document.getElementById("leaderboard");
-const saveBtn = document.getElementById("saveBtn");
 
 let keys = {};
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
@@ -94,6 +93,7 @@ let timer = 0;
 let started = false;
 let finished = false;
 let passedHalfway = false;
+let scoreSaved = false;
 
 function drawTrack() {
   ctx.fillStyle = "#2e7d32";
@@ -202,27 +202,28 @@ function finishRace() {
 }
 
 function saveScore() {
-  const name = document.getElementById("playerName").value.trim() || "Anonymous";
-  const score = { name, time: parseFloat(timer.toFixed(2)) };
-  db.ref("scores").push(score, () => {
+  if (scoreSaved) return;
+  scoreSaved = true;
+  const name = document.getElementById("playerName").value || "Anonymous";
+  const time = parseFloat(timer.toFixed(2));
+  db.ref("scores").push({ name, time }, () => {
     document.getElementById("playerName").style.display = "none";
-    saveBtn.style.display = "none";
+    document.querySelector("button").style.display = "none";
     loadLeaderboard();
   });
 }
 
 function loadLeaderboard() {
   db.ref("scores").orderByChild("time").limitToFirst(10).once("value", snapshot => {
-    const scores = [];
-    snapshot.forEach(child => scores.push(child.val()));
     let html = "<h3>🏆 Top 10 Times</h3><ol>";
-    for (let s of scores) html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+    snapshot.forEach(child => {
+      const s = child.val();
+      html += `<li>${s.name} – ${s.time.toFixed(2)}s</li>`;
+    });
     html += "</ol>";
     leaderboard.innerHTML = html;
   });
 }
-
-saveBtn.onclick = saveScore;
 
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
