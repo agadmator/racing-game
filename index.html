@@ -86,6 +86,24 @@
   window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
   window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
+  // Mobile tilt variables
+  let tiltX = 0; // Left-right tilt (- to +)
+  let tiltY = 0; // Front-back tilt (- to +)
+
+  window.addEventListener("deviceorientation", (event) => {
+    // gamma: left to right tilt (-90 to 90)
+    // beta: front-back tilt (-180 to 180)
+    tiltX = event.gamma || 0;
+    tiltY = event.beta || 0;
+
+    // Clamp tiltX between -30 and 30 for control smoothness
+    if (tiltX > 30) tiltX = 30;
+    if (tiltX < -30) tiltX = -30;
+    // Clamp tiltY between -30 and 30 as well
+    if (tiltY > 30) tiltY = 30;
+    if (tiltY < -30) tiltY = -30;
+  });
+
   const track = {
     centerX: 400,
     centerY: 400,
@@ -187,10 +205,18 @@
   function updateCar() {
     if (finished) return;
 
+    // Keyboard controls
     if (keys["w"]) car.speed += car.accel;
     if (keys["s"]) car.speed -= car.accel * 0.7;
     if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
     if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
+
+    // Tilt controls
+    // tiltX controls left/right turning, invert to match natural tilt
+    car.angle += (-tiltX / 30) * 0.05 * (car.speed / car.maxSpeed);
+    // tiltY controls forward/back acceleration, positive tiltY = forward
+    if (tiltY > 5) car.speed += car.accel * ((tiltY - 5) / 25);
+    else if (tiltY < -5) car.speed -= car.accel * ((-tiltY - 5) / 25);
 
     car.speed = Math.min(car.speed, car.maxSpeed);
     car.speed *= car.friction;
@@ -301,7 +327,7 @@
 
   playAgainBtn.addEventListener("click", resetRace);
 
-  // Removed duplicate timer declaration here!
+  let timer = 0;
 
   function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
