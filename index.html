@@ -1,83 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>God of Wheels</title>
-<style>
-  html, body {
-    margin: 0; background: #111; overflow: hidden;
-    font-family: sans-serif; color: white;
-    height: 100%;
-  }
-  body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  #ui {
-    position: absolute; top: 10px; left: 10px; z-index: 10;
-    font-size: 18px;
-  }
-  canvas {
-    background: #222;
-    margin-top: 50px;
-    border-radius: 8px;
-  }
-  #namePrompt {
-    position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: #333; padding: 20px; border-radius: 10px;
-    color: white; text-align: center; width: 320px;
-    display: none;
-    box-shadow: 0 0 15px #000;
-    z-index: 50;
-  }
-  #namePrompt input, #namePrompt button {
-    font-size: 16px; padding: 6px; margin-top: 10px;
-    border: none; border-radius: 4px; width: 100%;
-  }
-  #namePrompt button:disabled {
-    background: #666; cursor: not-allowed;
-  }
-  #leaderboard {
-    margin-top: 15px;
-    text-align: left;
-    font-size: 14px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  /* Mobile controls container */
-  #mobileControls {
-    margin-top: 20px;
-    width: 320px;
-    height: 150px;
-    background: rgba(0,0,0,0.5);
-    border-radius: 12px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 20px;
-    user-select: none;
-    touch-action: none;
-  }
-  .btn {
-    width: 60px;
-    height: 60px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 36px;
-    color: white;
-    cursor: pointer;
-    transition: background 0.3s;
-  }
-  .btn:active {
-    background: rgba(255,255,255,0.6);
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>God of Wheels</title>
+  <style>
+    html, body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; color: white; height: 100%; }
+    #ui { position: absolute; top: 10px; left: 10px; z-index: 10; font-size: 18px; }
+    canvas { display: block; margin: 50px auto 0; background: #222; border-radius: 8px; }
+    #namePrompt {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: #333; padding: 20px; border-radius: 10px;
+      color: white; text-align: center; width: 320px;
+      display: none;
+      box-shadow: 0 0 15px #000;
+      z-index: 50;
+    }
+    #namePrompt input, #namePrompt button {
+      font-size: 16px; padding: 6px; margin-top: 10px;
+      border: none; border-radius: 4px; width: 100%;
+    }
+    #namePrompt button:disabled {
+      background: #666; cursor: not-allowed;
+    }
+    #leaderboard {
+      margin-top: 15px;
+      text-align: left;
+      font-size: 14px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
 </head>
 <body>
 
@@ -92,14 +45,6 @@
 </div>
 
 <canvas id="gameCanvas" width="800" height="800"></canvas>
-
-<!-- Mobile controls -->
-<div id="mobileControls">
-  <div class="btn" id="btnUp">▲</div>
-  <div class="btn" id="btnLeft">◄</div>
-  <div class="btn" id="btnDown">▼</div>
-  <div class="btn" id="btnRight">►</div>
-</div>
 
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -128,39 +73,22 @@
   const playAgainBtn = document.getElementById("playAgainBtn");
   const leaderboard = document.getElementById("leaderboard");
 
-  let keys = {};
-  window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-  window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+  let laps = 0;
+  let timer = 0;
+  let started = false;
+  let finished = false;
+  let passedHalfway = false;
+  let scoreSaved = false;
 
-  // Mobile control buttons
-  const btnUp = document.getElementById("btnUp");
-  const btnDown = document.getElementById("btnDown");
-  const btnLeft = document.getElementById("btnLeft");
-  const btnRight = document.getElementById("btnRight");
+  // Controls from device orientation
+  let tiltForwardBack = 0; // pitch (front/back tilt)
+  let tiltLeftRight = 0;   // roll (left/right tilt)
 
-  function setKey(key, value) {
-    keys[key] = value;
-  }
-  // Handle touch events for mobile buttons
-  [btnUp, btnDown, btnLeft, btnRight].forEach(btn => {
-    btn.addEventListener("touchstart", e => {
-      e.preventDefault();
-      switch(btn.id) {
-        case "btnUp": setKey("w", true); break;
-        case "btnDown": setKey("s", true); break;
-        case "btnLeft": setKey("a", true); break;
-        case "btnRight": setKey("d", true); break;
-      }
-    });
-    btn.addEventListener("touchend", e => {
-      e.preventDefault();
-      switch(btn.id) {
-        case "btnUp": setKey("w", false); break;
-        case "btnDown": setKey("s", false); break;
-        case "btnLeft": setKey("a", false); break;
-        case "btnRight": setKey("d", false); break;
-      }
-    });
+  window.addEventListener('deviceorientation', e => {
+    // e.beta is front/back tilt [-180 to 180], e.gamma is left/right tilt [-90 to 90]
+    // We'll use e.beta for acceleration/brake, e.gamma for turning
+    tiltForwardBack = e.beta || 0;  
+    tiltLeftRight = e.gamma || 0;
   });
 
   const track = {
@@ -190,13 +118,6 @@
     { x: 400, y: 500 },
     { x: 400, y: 300 }
   ];
-
-  let laps = 0;
-  let timer = 0;
-  let started = false;
-  let finished = false;
-  let passedHalfway = false;
-  let scoreSaved = false;
 
   function drawTrack() {
     ctx.fillStyle = "#2e7d32";
@@ -264,10 +185,22 @@
   function updateCar() {
     if (finished) return;
 
-    if (keys["w"]) car.speed += car.accel;
-    if (keys["s"]) car.speed -= car.accel * 0.7;
-    if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
-    if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
+    // Tilt controls
+    // Normalize tilt input ranges to reasonable values
+    // Front/back tilt controls acceleration/brake
+    if (tiltForwardBack < 15) {
+      car.speed += car.accel;
+    } else if (tiltForwardBack > 35) {
+      car.speed -= car.accel * 0.7;
+    }
+
+    // Left/right tilt controls turning
+    // Map tiltLeftRight approx [-30,30] degrees to turning rate
+    if (tiltLeftRight < -5) {
+      car.angle -= 0.05 * (car.speed / car.maxSpeed);
+    } else if (tiltLeftRight > 5) {
+      car.angle += 0.05 * (car.speed / car.maxSpeed);
+    }
 
     car.speed = Math.min(car.speed, car.maxSpeed);
     car.speed *= car.friction;
@@ -391,6 +324,5 @@
 
   gameLoop();
 </script>
-
 </body>
 </html>
