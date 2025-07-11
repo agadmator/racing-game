@@ -24,6 +24,7 @@
     color: white; text-align: center; width: 320px;
     display: none;
     box-shadow: 0 0 15px #000;
+    z-index: 30;
   }
   #namePrompt input, #namePrompt button {
     font-size: 16px; padding: 6px; margin-top: 10px;
@@ -60,6 +61,7 @@
   <input type="text" id="playerName" placeholder="Enter your name" maxlength="20" />
   <button id="saveBtn">Save Score</button>
   <button id="playAgainBtn" style="display:none;">Play Again</button>
+  <div id="notTop10" style="display:none;">Sorry, you are not in the Top 10!</div>
 </div>
 
 <div id="leaderboard">
@@ -72,306 +74,301 @@
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
 <script>
-  try {
-    const firebaseConfig = {
-      apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
-      authDomain: "god-of-wheels.firebaseapp.com",
-      projectId: "god-of-wheels",
-      storageBucket: "god-of-wheels.appspot.com",
-      messagingSenderId: "56099021474",
-      appId: "1:56099021474:web:c658be3c14eb930687adfb",
-      databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+  // --- CONFIG & INIT ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyCSXMMHZ68YWbIXFTN9hecKrF3fu2LEdrg",
+    authDomain: "god-of-wheels.firebaseapp.com",
+    projectId: "god-of-wheels",
+    storageBucket: "god-of-wheels.appspot.com",
+    messagingSenderId: "56099021474",
+    appId: "1:56099021474:web:c658be3c14eb930687adfb",
+    databaseURL: "https://god-of-wheels-default-rtdb.europe-west1.firebasedatabase.app"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    const ui = document.getElementById("ui");
-    const namePrompt = document.getElementById("namePrompt");
-    const finalTime = document.getElementById("finalTime");
-    const playerName = document.getElementById("playerName");
-    const saveBtn = document.getElementById("saveBtn");
-    const playAgainBtn = document.getElementById("playAgainBtn");
-    const leaderboardList = document.getElementById("leaderboardList");
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  const ui = document.getElementById("ui");
+  const namePrompt = document.getElementById("namePrompt");
+  const finalTime = document.getElementById("finalTime");
+  const playerName = document.getElementById("playerName");
+  const saveBtn = document.getElementById("saveBtn");
+  const playAgainBtn = document.getElementById("playAgainBtn");
+  const leaderboardList = document.getElementById("leaderboardList");
+  const notTop10 = document.getElementById("notTop10");
 
-    let keys = {};
-    window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-    window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+  let keys = {};
+  window.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+  window.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-    const track = {
-      centerX: 400,
-      centerY: 400,
-      innerRadius: 140,
-      outerRadius: 240,
-      midRadius: 190
-    };
+  // --- TRACK AND CAR ---
+  const track = {
+    centerX: 400,
+    centerY: 400,
+    innerRadius: 140,
+    outerRadius: 240,
+    midRadius: 190
+  };
 
-    const car = {
-      x: track.centerX,
-      y: track.centerY - track.midRadius,
-      angle: Math.PI / 2,
-      speed: 0,
-      maxSpeed: 5,
-      accel: 0.15,
-      friction: 0.97,
-      drift: 0.05,
-      width: 20,
-      height: 40
-    };
+  const car = {
+    x: track.centerX,
+    y: track.centerY - track.midRadius,
+    angle: Math.PI / 2,
+    speed: 0,
+    maxSpeed: 5,
+    accel: 0.15,
+    friction: 0.97,
+    drift: 0.05,
+    width: 20,
+    height: 40
+  };
 
-    // Create moving obstacles with random velocity
-    const obstacles = [
-      { x: 500, y: 400, vx: 1.5, vy: 1 },
-      { x: 300, y: 400, vx: -1, vy: 1.2 },
-      { x: 400, y: 500, vx: 1.2, vy: -1.4 },
-      { x: 400, y: 300, vx: -1.5, vy: -1 }
-    ];
+  // --- MOVING OBSTACLES ---
+  function randomObstacle() {
+    let angle = Math.random() * Math.PI * 2;
+    let r = track.innerRadius + 20 + Math.random() * (track.outerRadius - track.innerRadius - 40);
+    return {
+      x: track.centerX + Math.cos(angle) * r,
+      y: track.centerY + Math.sin(angle) * r,
+      vx: (Math.random() * 2 - 1) * 1.5,
+      vy: (Math.random() * 2 - 1) * 1.5,
+      radius: 10
+    }
+  }
+  const obstacles = [randomObstacle(), randomObstacle(), randomObstacle(), randomObstacle(), randomObstacle()];
 
-    let laps = 0;
-    let timer = 0;
-    let started = false;
-    let finished = false;
-    let passedHalfway = false;
-    let scoreSaved = false;
+  // --- GAME STATE ---
+  let laps = 0;
+  let timer = 0;
+  let started = false;
+  let finished = false;
+  let passedHalfway = false;
+  let scoreSaved = false;
+  let top10Times = [];
 
-    function drawTrack() {
-      ctx.fillStyle = "#2e7d32";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // --- DRAWING ---
+  function drawTrack() {
+    ctx.fillStyle = "#2e7d32";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const gradient = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
+    gradient.addColorStop(0, "#444");
+    gradient.addColorStop(1, "#111");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
+    ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.setLineDash([10, 10]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Start line
+    const startAngle = -Math.PI / 2;
+    const startXInner = track.centerX + Math.cos(startAngle) * track.innerRadius;
+    const startYInner = track.centerY + Math.sin(startAngle) * track.innerRadius;
+    const startXOuter = track.centerX + Math.cos(startAngle) * track.outerRadius;
+    const startYOuter = track.centerY + Math.sin(startAngle) * track.outerRadius;
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(startXInner, startYInner);
+    ctx.lineTo(startXOuter, startYOuter);
+    ctx.stroke();
+    ctx.fillStyle = "white";
+    ctx.font = "bold 16px sans-serif";
+    ctx.fillText("START", track.centerX - 25, startYInner - 10);
+  }
 
-      const gradient = ctx.createRadialGradient(track.centerX, track.centerY, track.innerRadius, track.centerX, track.centerY, track.outerRadius);
-      gradient.addColorStop(0, "#444");
-      gradient.addColorStop(1, "#111");
-      ctx.fillStyle = gradient;
-
+  function drawObstacles() {
+    ctx.fillStyle = "orange";
+    obstacles.forEach(o => {
       ctx.beginPath();
-      ctx.arc(track.centerX, track.centerY, track.outerRadius, 0, Math.PI * 2);
-      ctx.arc(track.centerX, track.centerY, track.innerRadius, 0, Math.PI * 2, true);
+      ctx.arc(o.x, o.y, o.radius, 0, Math.PI * 2);
       ctx.fill();
+    });
+  }
 
-      ctx.strokeStyle = "white";
-      ctx.setLineDash([10, 10]);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(track.centerX, track.centerY, track.midRadius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      const startAngle = -Math.PI / 2;
-      const startXInner = track.centerX + Math.cos(startAngle) * track.innerRadius;
-      const startYInner = track.centerY + Math.sin(startAngle) * track.innerRadius;
-      const startXOuter = track.centerX + Math.cos(startAngle) * track.outerRadius;
-      const startYOuter = track.centerY + Math.sin(startAngle) * track.outerRadius;
-
-      ctx.strokeStyle = "white";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(startXInner, startYInner);
-      ctx.lineTo(startXOuter, startYOuter);
-      ctx.stroke();
-
-      ctx.fillStyle = "white";
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("START", track.centerX - 25, startYInner - 10);
-    }
-
-    function drawObstacles() {
-      ctx.fillStyle = "orange";
-      obstacles.forEach(o => {
-        ctx.beginPath();
-        ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    // Update obstacle positions with bouncing inside the track
-    function updateObstacles() {
-      obstacles.forEach(o => {
-        o.x += o.vx;
-        o.y += o.vy;
-
-        // Calculate distance from center
-        const dx = o.x - track.centerX;
-        const dy = o.y - track.centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        // Bounce if hitting inner or outer radius limits
-        if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) {
-          // Reverse velocity vector
-          o.vx = -o.vx;
-          o.vy = -o.vy;
-
-          // Move obstacle back inside bounds
-          o.x += o.vx * 2;
-          o.y += o.vy * 2;
-        }
-      });
-    }
-
-    function drawCar() {
-      ctx.save();
-      ctx.translate(car.x, car.y);
-      ctx.rotate(car.angle);
-      ctx.shadowColor = "black";
-      ctx.shadowBlur = 15;
-      ctx.fillStyle = "#f44336";
-      ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
-      ctx.fillStyle = "white";
-      ctx.fillRect(-car.width / 4, -car.height / 2, 5, 5);
-      ctx.fillRect(car.width / 4 - 5, -car.height / 2, 5, 5);
-      ctx.restore();
-    }
-
-    function updateCar() {
-      if (finished) return;
-
-      if (keys["w"]) car.speed += car.accel;
-      if (keys["s"]) car.speed -= car.accel * 0.7;
-      if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
-      if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
-
-      car.speed = Math.min(car.speed, car.maxSpeed);
-      car.speed *= car.friction;
-
-      if (!started && car.speed > 0.05) {
-        started = true;
-        laps = 1;
+  function updateObstacles() {
+    obstacles.forEach(o => {
+      o.x += o.vx;
+      o.y += o.vy;
+      const dx = o.x - track.centerX, dy = o.y - track.centerY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      // Bounce off inner/outer bounds
+      if (dist < track.innerRadius + o.radius) {
+        let norm = {x: dx / dist, y: dy / dist};
+        let dot = o.vx * norm.x + o.vy * norm.y;
+        o.vx -= 2 * dot * norm.x;
+        o.vy -= 2 * dot * norm.y;
+        o.x = track.centerX + norm.x * (track.innerRadius + o.radius);
+        o.y = track.centerY + norm.y * (track.innerRadius + o.radius);
       }
-
-      car.x += Math.sin(car.angle) * car.speed;
-      car.y -= Math.cos(car.angle) * car.speed;
-      car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
-      car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
-
-      const dx = car.x - track.centerX;
-      const dy = car.y - track.centerY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
-
-      for (let o of obstacles) {
-        if (Math.hypot(car.x - o.x, car.y - o.y) < 20) car.speed *= 0.4;
+      if (dist > track.outerRadius - o.radius) {
+        let norm = {x: dx / dist, y: dy / dist};
+        let dot = o.vx * norm.x + o.vy * norm.y;
+        o.vx -= 2 * dot * norm.x;
+        o.vy -= 2 * dot * norm.y;
+        o.x = track.centerX + norm.x * (track.outerRadius - o.radius);
+        o.y = track.centerY + norm.y * (track.outerRadius - o.radius);
       }
+    });
+  }
 
-      const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
-      const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
+  function drawCar() {
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = "#f44336";
+    ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+    ctx.fillStyle = "white";
+    ctx.fillRect(-car.width / 4, -car.height / 2, 5, 5);
+    ctx.fillRect(car.width / 4 - 5, -car.height / 2, 5, 5);
+    ctx.restore();
+  }
 
-      if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
-
-      if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
-        passedHalfway = false;
-        if (started && !finished) {
-          laps++;
-          if (laps > 3) finishRace();
-        }
+  // --- GAME LOOP ---
+  function updateCar() {
+    if (finished) return;
+    if (keys["w"]) car.speed += car.accel;
+    if (keys["s"]) car.speed -= car.accel * 0.7;
+    if (keys["a"]) car.angle -= 0.05 * (car.speed / car.maxSpeed);
+    if (keys["d"]) car.angle += 0.05 * (car.speed / car.maxSpeed);
+    car.speed = Math.min(car.speed, car.maxSpeed);
+    car.speed *= car.friction;
+    if (!started && car.speed > 0.05) {
+      started = true;
+      laps = 1;
+    }
+    car.x += Math.sin(car.angle) * car.speed;
+    car.y -= Math.cos(car.angle) * car.speed;
+    car.x += Math.sin(car.angle + Math.PI / 2) * car.speed * car.drift;
+    car.y -= Math.cos(car.angle + Math.PI / 2) * car.speed * car.drift;
+    // Stay on road
+    const dx = car.x - track.centerX, dy = car.y - track.centerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) car.speed *= 0.5;
+    // Hit obstacles
+    for (let o of obstacles) {
+      if (Math.hypot(car.x - o.x, car.y - o.y) < o.radius + 12) car.speed *= 0.4;
+    }
+    // Lap logic
+    const angleToCar = Math.atan2(car.y - track.centerY, car.x - track.centerX);
+    const normalizedAngle = (angleToCar + 2 * Math.PI) % (2 * Math.PI);
+    if (normalizedAngle > Math.PI * 0.95 && normalizedAngle < Math.PI * 1.05) passedHalfway = true;
+    if (normalizedAngle > 1.45 * Math.PI && normalizedAngle < 1.55 * Math.PI && passedHalfway) {
+      passedHalfway = false;
+      if (started && !finished) {
+        laps++;
+        if (laps > 3) finishRace();
       }
     }
+  }
 
-    function updateUI() {
-      ui.innerText = `Lap: ${Math.min(laps, 3)}/3 | Time: ${timer.toFixed(2)}s`;
+  function updateUI() {
+    ui.innerText = `Lap: ${Math.min(laps, 3)}/3 | Time: ${timer.toFixed(2)}s`;
+  }
+
+  function finishRace() {
+    finished = true;
+    finalTime.textContent = timer.toFixed(2);
+
+    // See if score is top 10
+    let isTop10 = (top10Times.length < 10) || (timer < top10Times[top10Times.length-1].time);
+    if (isTop10) {
+      playerName.style.display = "";
+      saveBtn.style.display = "";
+      notTop10.style.display = "none";
+    } else {
+      playerName.style.display = "none";
+      saveBtn.style.display = "none";
+      notTop10.style.display = "";
+      playAgainBtn.style.display = "inline-block";
     }
+    namePrompt.style.display = "block";
+  }
 
-    function finishRace() {
-      finished = true;
-      finalTime.textContent = timer.toFixed(2);
-      namePrompt.style.display = "block";
-      console.log("Race finished! Showing name prompt.");
-    }
+  // --- LEADERBOARD LOGIC ---
+  function updateLeaderboard(snapshot) {
+    let html = "";
+    top10Times = [];
+    let rank = 1;
+    snapshot.forEach(child => {
+      const s = child.val();
+      top10Times.push({ name: s.name, time: s.time });
+      html += `<li>${rank}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
+      rank++;
+    });
+    leaderboardList.innerHTML = html || "<li>No scores yet.</li>";
+  }
 
-    saveBtn.addEventListener("click", () => {
-      if (scoreSaved) {
-        console.log("Score already saved. Ignoring.");
-        return;
-      }
-      const name = playerName.value.trim() || "Anonymous";
-      const time = parseFloat(timer.toFixed(2));
-
-      console.log(`Saving score: ${name} - ${time}s`);
-      saveBtn.disabled = true;
-
-      firebase.database().ref('scores').push({ name, time })
-        .then(() => {
-          scoreSaved = true;
-          playerName.style.display = "none";
-          saveBtn.style.display = "none";
-          playAgainBtn.style.display = "inline-block";
-          console.log("Score saved successfully!");
-          // Leaderboard auto-updates via Firebase listener
-        })
-        .catch((err) => {
-          alert("Error saving score. Please try again.");
-          console.error("Firebase save error:", err);
-          saveBtn.disabled = false;
-        });
+  db.ref('scores').orderByChild('time').limitToFirst(10)
+    .on('value', updateLeaderboard, err => {
+      leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
+      console.error(err);
     });
 
-    firebase.database().ref('scores')
-      .orderByChild('time')
-      .limitToFirst(10)
-      .on('value', snapshot => {
-        console.log("Received leaderboard update.");
-        if (!snapshot.exists()) {
-          leaderboardList.innerHTML = "<li>No scores yet.</li>";
-          return;
-        }
-        let html = "";
-        let rank = 1;
-        snapshot.forEach(child => {
-          const s = child.val();
-          html += `<li>${rank}. ${s.name} – ${s.time.toFixed(2)}s</li>`;
-          rank++;
-        });
-        leaderboardList.innerHTML = html;
-      }, err => {
-        leaderboardList.innerHTML = "<li>Error loading leaderboard.</li>";
-        console.error("Firebase leaderboard error:", err);
+  // --- SCORE SAVE ---
+  saveBtn.onclick = () => {
+    if (scoreSaved) return;
+    let name = playerName.value.trim() || "Anonymous";
+    let time = parseFloat(timer.toFixed(2));
+    saveBtn.disabled = true;
+    db.ref('scores').push({ name, time })
+      .then(() => {
+        scoreSaved = true;
+        playerName.style.display = "none";
+        saveBtn.style.display = "none";
+        playAgainBtn.style.display = "inline-block";
+      })
+      .catch((err) => {
+        alert("Error saving score. Please try again.");
+        saveBtn.disabled = false;
+        console.error(err);
       });
+  };
 
-    function resetRace() {
-      console.log("Resetting race...");
-      car.x = track.centerX;
-      car.y = track.centerY - track.midRadius;
-      car.angle = Math.PI / 2;
-      car.speed = 0;
-      laps = 0;
-      timer = 0;
-      started = false;
-      finished = false;
-      passedHalfway = false;
-      scoreSaved = false;
-      namePrompt.style.display = "none";
-      playerName.value = "";
-      playerName.style.display = "inline-block";
-      saveBtn.style.display = "inline-block";
-      saveBtn.disabled = false;
-      playAgainBtn.style.display = "none";
-    }
+  playAgainBtn.onclick = resetRace;
 
-    playAgainBtn.addEventListener("click", resetRace);
-
-    function gameLoop() {
-      try {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawTrack();
-        updateObstacles(); // update obstacle positions
-        drawObstacles();
-        updateCar();
-        drawCar();
-        if (started && !finished) timer += 1 / 60;
-        updateUI();
-        requestAnimationFrame(gameLoop);
-      } catch (err) {
-        console.error("Game loop error:", err);
-      }
-    }
-
-    gameLoop();
-
-  } catch (error) {
-    console.error("Initialization error:", error);
+  function resetRace() {
+    car.x = track.centerX;
+    car.y = track.centerY - track.midRadius;
+    car.angle = Math.PI / 2;
+    car.speed = 0;
+    laps = 0;
+    timer = 0;
+    started = false;
+    finished = false;
+    passedHalfway = false;
+    scoreSaved = false;
+    namePrompt.style.display = "none";
+    playerName.value = "";
+    playerName.style.display = "";
+    saveBtn.style.display = "";
+    saveBtn.disabled = false;
+    playAgainBtn.style.display = "none";
+    notTop10.style.display = "none";
   }
-</script>
 
+  // --- MAIN LOOP ---
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawTrack();
+    drawObstacles();
+    updateObstacles();
+    updateCar();
+    drawCar();
+    if (started && !finished) timer += 1 / 60;
+    updateUI();
+    requestAnimationFrame(gameLoop);
+  }
+  gameLoop();
+</script>
 </body>
 </html>
