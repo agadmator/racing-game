@@ -122,15 +122,16 @@
       height: 40
     };
 
+    // Create moving obstacles with random velocity
     const obstacles = [
-      { x: 500, y: 400 },
-      { x: 300, y: 400 },
-      { x: 400, y: 500 },
-      { x: 400, y: 300 }
+      { x: 500, y: 400, vx: 1.5, vy: 1 },
+      { x: 300, y: 400, vx: -1, vy: 1.2 },
+      { x: 400, y: 500, vx: 1.2, vy: -1.4 },
+      { x: 400, y: 300, vx: -1.5, vy: -1 }
     ];
 
     let laps = 0;
-    let timer = 0; // Declare timer only once here
+    let timer = 0;
     let started = false;
     let finished = false;
     let passedHalfway = false;
@@ -182,6 +183,30 @@
         ctx.beginPath();
         ctx.arc(o.x, o.y, 10, 0, Math.PI * 2);
         ctx.fill();
+      });
+    }
+
+    // Update obstacle positions with bouncing inside the track
+    function updateObstacles() {
+      obstacles.forEach(o => {
+        o.x += o.vx;
+        o.y += o.vy;
+
+        // Calculate distance from center
+        const dx = o.x - track.centerX;
+        const dy = o.y - track.centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Bounce if hitting inner or outer radius limits
+        if (dist < track.innerRadius + 10 || dist > track.outerRadius - 10) {
+          // Reverse velocity vector
+          o.vx = -o.vx;
+          o.vy = -o.vy;
+
+          // Move obstacle back inside bounds
+          o.x += o.vx * 2;
+          o.y += o.vy * 2;
+        }
       });
     }
 
@@ -329,6 +354,7 @@
       try {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawTrack();
+        updateObstacles(); // update obstacle positions
         drawObstacles();
         updateCar();
         drawCar();
